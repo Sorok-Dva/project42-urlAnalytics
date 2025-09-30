@@ -1,0 +1,38 @@
+version: '3.9'
+services:
+  mysql:
+    image: mysql:8.3
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: p42pass
+      MYSQL_DATABASE: p42_urlmanager
+      MYSQL_USER: p42
+      MYSQL_PASSWORD: p42pass
+    ports:
+      - '3307:3306'
+    volumes:
+      - mysql_data:/var/lib/mysql
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    depends_on:
+      - mysql
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: mysql://p42:p42pass@mysql:3306/p42_urlmanager
+      CLIENT_URL: http://localhost:8080
+      APP_URL: http://localhost:4000
+      DEFAULT_DOMAIN: localhost:8080
+    ports:
+      - '4000:4000'
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    depends_on:
+      - server
+    ports:
+      - '4001:4001'
+volumes:
+  mysql_data:

@@ -1,0 +1,58 @@
+import { apiClient } from './client'
+import type { Link, AnalyticsAggregation } from '../types'
+
+export const fetchLinks = async (params?: Record<string, string | number | undefined>) => {
+  const response = await apiClient.get('/api/links', { params })
+  return response.data.links as Link[]
+}
+
+export const createLinkRequest = async (payload: Record<string, unknown>) => {
+  const response = await apiClient.post('/api/links', payload)
+  return response.data.link as Link
+}
+
+export const updateLinkRequest = async (id: string, payload: Record<string, unknown>) => {
+  const response = await apiClient.patch(`/api/links/${id}`, payload)
+  return response.data.link as Link
+}
+
+export const fetchLinkDetails = async (id: string) => {
+  const response = await apiClient.get(`/api/links/${id}`)
+  return response.data.link as Link
+}
+
+export const fetchLinkAnalytics = async (
+  id: string,
+  params: { interval?: string; page?: number; pageSize?: number; projectId?: string }
+) => {
+  const response = await apiClient.get(`/api/links/${id}/stats`, { params })
+  return response.data.analytics as AnalyticsAggregation
+}
+
+export const toggleLinkPublicStats = async (id: string, enabled: boolean) => {
+  const response = await apiClient.post(`/api/links/${id}/public`, { enabled })
+  return response.data
+}
+
+export const archiveLinkRequest = async (id: string) => {
+  const response = await apiClient.post(`/api/links/${id}/archive`)
+  return response.data.link as Link
+}
+
+export const unarchiveLinkRequest = async (id: string) => {
+  const response = await apiClient.post(`/api/links/${id}/unarchive`)
+  return response.data.link as Link
+}
+
+export const deleteLinkRequest = async (id: string) => {
+  const response = await apiClient.delete(`/api/links/${id}`)
+  return response.data.link as Link
+}
+
+export const exportLinkStats = async (id: string, format: 'csv' | 'json') => {
+  const response = await apiClient.get(`/api/links/${id}/export`, {
+    params: { format },
+    responseType: 'text'
+  })
+  return response.data as string
+}

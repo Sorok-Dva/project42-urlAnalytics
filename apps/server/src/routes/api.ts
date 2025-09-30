@@ -1,0 +1,58 @@
+import { Router, type Router as ExpressRouter } from 'express'
+import * as authController from '../controllers/authController'
+import * as linkController from '../controllers/linkController'
+import * as projectController from '../controllers/projectController'
+import * as publicStatsController from '../controllers/publicStatsController'
+import * as domainController from '../controllers/domainController'
+import * as qrController from '../controllers/qrController'
+import * as webhookController from '../controllers/webhookController'
+import * as utilsController from '../controllers/utilsController'
+import * as dashboardController from '../controllers/dashboardController'
+import { requireAuth } from '../middleware/auth'
+import { requireRole } from '../middleware/requireRole'
+import { apiRateLimit } from '../middleware/rateLimit'
+
+const router: ExpressRouter = Router()
+
+router.post('/auth/register', authController.register)
+router.post('/auth/login', authController.login)
+router.get('/auth/me', requireAuth, authController.current)
+router.get('/public/links/:token', publicStatsController.linkStats)
+router.get('/public/projects/:token', publicStatsController.projectStats)
+
+router.use(requireAuth, apiRateLimit)
+
+router.get('/dashboard', dashboardController.overview)
+
+router.post('/links', requireRole('member'), linkController.create)
+router.get('/links', linkController.list)
+router.patch('/links/:id', requireRole('member'), linkController.update)
+router.post('/links/:id/archive', requireRole('member'), linkController.archive)
+router.post('/links/:id/unarchive', requireRole('member'), linkController.unarchive)
+router.delete('/links/:id', requireRole('admin'), linkController.remove)
+router.post('/links/:id/duplicate', requireRole('member'), linkController.duplicate)
+router.post('/links/:id/move', requireRole('member'), linkController.move)
+router.post('/links/:id/public', requireRole('member'), linkController.togglePublic)
+router.get('/links/:id/stats', linkController.analytics)
+router.get('/links/:id/export', linkController.exportStats)
+router.get('/links/:id', linkController.detail)
+
+router.get('/projects', projectController.list)
+router.post('/projects', requireRole('member'), projectController.create)
+router.post('/projects/:id/public', requireRole('member'), projectController.makePublic)
+
+router.get('/domains', domainController.list)
+router.post('/domains', requireRole('admin'), domainController.create)
+router.post('/domains/:id/verify', requireRole('admin'), domainController.verify)
+router.post('/domains/:id/assign', requireRole('admin'), domainController.assign)
+
+router.get('/qr', qrController.list)
+router.post('/qr', requireRole('member'), qrController.create)
+router.get('/qr/:id/download', qrController.download)
+
+router.get('/webhooks', requireRole('admin'), webhookController.list)
+router.post('/webhooks', requireRole('admin'), webhookController.create)
+router.post('/webhooks/tests', requireRole('admin'), webhookController.test)
+router.post('/utils/utm', utilsController.buildUtm)
+
+export default router

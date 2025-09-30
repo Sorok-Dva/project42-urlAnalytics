@@ -1,0 +1,24 @@
+{
+  "name": "@p42/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "lint": "eslint 'src/**/*.{ts,tsx}'",
+    "test": "vitest",
+    "format": "prettier --write 'src/**/*.{ts,tsx,js,json}'"
+  },
+  "dependencies": {
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "@typescript-eslint/eslint-plugin": "^7.7.1",
+    "@typescript-eslint/parser": "^7.7.1",
+    "typescript": "^5.4.5",
+    "vitest": "^1.5.2"
+  }
+}

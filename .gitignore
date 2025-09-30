@@ -1,0 +1,16 @@
+node_modules
+pnpm-lock.yaml
+dist
+build
+coverage
+.env
+.env.*
+Dockerfile.local
+.idea
+.DS_Store
+.vscode
+.tmp
+storage
+logs
+**/.turbo
+**/.cache

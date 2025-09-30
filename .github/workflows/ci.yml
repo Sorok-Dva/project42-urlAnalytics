@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8.15.5
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Type check server
+        run: pnpm --filter @p42/server run build
+      - name: Test server
+        run: pnpm --filter @p42/server test
+      - name: Test web
+        run: pnpm --filter @p42/web test
+      - name: Lint server
+        run: pnpm --filter @p42/server lint
+      - name: Lint web
+        run: pnpm --filter @p42/web lint

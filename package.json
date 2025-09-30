@@ -1,0 +1,18 @@
+{
+  "name": "p42-urlmanager",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@8.15.5",
+  "scripts": {
+    "dev": "pnpm -r --parallel run dev",
+    "build": "pnpm -r run build",
+    "test": "pnpm -r run test",
+    "lint": "pnpm -r run lint",
+    "format": "pnpm -r run format",
+    "migrate": "pnpm --filter server run migrate",
+    "seed": "pnpm --filter server run seed",
+    "docker:build": "docker compose build",
+    "docker:up": "docker compose up",
+    "docker:down": "docker compose down"
+  }
+}

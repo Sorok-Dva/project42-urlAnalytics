@@ -1,0 +1,56 @@
+{
+  "app": {
+    "name": "P42 | MIR-ALPHA"
+  },
+  "nav": {
+    "home": "Accueil",
+    "statistics": "Statistiques",
+    "deeplinks": "Liens",
+    "qr": "QR Codes",
+    "logout": "Déconnexion"
+  },
+  "home": {
+    "welcome": "Bon retour",
+    "recentClicks": "Clics récents",
+    "viewAnalytics": "Voir les analyses",
+    "numberOfLinks": "Nombre de liens",
+    "totalClicks": "Total des clics",
+    "onboarding": "Checklist d'onboarding"
+  },
+  "statistics": {
+    "title": "Statistiques",
+    "makePublic": "Rendre public",
+    "share": "URL de partage",
+    "exportCsv": "Exporter CSV",
+    "exportJson": "Exporter JSON",
+    "eventsFlow": "Flux d'événements",
+    "topCountries": "Pays principaux",
+    "topCities": "Villes principales",
+    "topContinents": "Continents principaux",
+    "devices": "Appareils",
+    "os": "Systèmes",
+    "browsers": "Navigateurs",
+    "languages": "Langues",
+    "scans": "Scans (QR code)",
+    "clickOrigins": "Origines des clics"
+  },
+  "deeplinks": {
+    "title": "Mes liens",
+    "search": "Rechercher un lien",
+    "create": "Créer un lien"
+  },
+  "qr": {
+    "title": "Mes QR codes",
+    "create": "Créer un QR"
+  },
+  "auth": {
+    "title": "Connexion",
+    "subtitle": "Accédez à votre espace",
+    "email": "Email",
+    "password": "Mot de passe",
+    "signin": "Se connecter",
+    "signup": "Créer un compte",
+    "oauthGithub": "Continuer avec GitHub",
+    "oauthDiscord": "Continuer avec Discord"
+  }
+}

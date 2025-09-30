@@ -1,0 +1,18 @@
+FROM node:20-alpine AS base
+WORKDIR /app
+RUN npm install -g pnpm@8.15.5
+COPY pnpm-workspace.yaml package.json tsconfig.base.json .editorconfig .prettierrc .eslintrc.cjs ./
+COPY apps/server/package.json apps/server/package.json
+COPY apps/web/package.json apps/web/package.json
+COPY packages/shared/package.json packages/shared/package.json
+RUN pnpm install --filter @p42/server... --filter @p42/shared...
+COPY . .
+RUN pnpm --filter @p42/shared build
+RUN pnpm --filter @p42/server build
+
+COPY apps/server/scripts/docker-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENV NODE_ENV=production
+EXPOSE 4000
+ENTRYPOINT ["/entrypoint.sh"]

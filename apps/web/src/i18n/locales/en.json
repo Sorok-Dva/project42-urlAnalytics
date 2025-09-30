@@ -1,0 +1,56 @@
+{
+  "app": {
+    "name": "P42 | MIR-ALPHA"
+  },
+  "nav": {
+    "home": "Home",
+    "statistics": "Statistics",
+    "deeplinks": "Deeplinks",
+    "qr": "QR Codes",
+    "logout": "Logout"
+  },
+  "home": {
+    "welcome": "Welcome back",
+    "recentClicks": "Recent clicks",
+    "viewAnalytics": "View analytics",
+    "numberOfLinks": "Number of links",
+    "totalClicks": "Total clicks",
+    "onboarding": "Onboarding checklist"
+  },
+  "statistics": {
+    "title": "Statistics",
+    "makePublic": "Make public",
+    "share": "Share URL",
+    "exportCsv": "Export CSV",
+    "exportJson": "Export JSON",
+    "eventsFlow": "Events flow",
+    "topCountries": "Top countries",
+    "topCities": "Top cities",
+    "topContinents": "Top continents",
+    "devices": "Devices",
+    "os": "Operating systems",
+    "browsers": "Browsers",
+    "languages": "Languages",
+    "scans": "Scan (QR code)",
+    "clickOrigins": "Clicks origin"
+  },
+  "deeplinks": {
+    "title": "My links",
+    "search": "Search links",
+    "create": "Create link"
+  },
+  "qr": {
+    "title": "My QR codes",
+    "create": "Create QR"
+  },
+  "auth": {
+    "title": "Sign in",
+    "subtitle": "Access your workspace",
+    "email": "Email",
+    "password": "Password",
+    "signin": "Sign in",
+    "signup": "Create account",
+    "oauthGithub": "Continue with GitHub",
+    "oauthDiscord": "Continue with Discord"
+  }
+}
