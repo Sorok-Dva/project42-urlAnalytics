@@ -34,10 +34,130 @@ export interface LinkAnalyticsEvent {
   country: string | null
   city: string | null
   continent: string | null
+  latitude: number | null
+  longitude: number | null
+  isBot: boolean
   ipHash: string | null
   userAgent: string | null
   occurredAt: string
   metadata?: Record<string, unknown>
+  utm?: Record<string, string | null> | null
+}
+
+export interface AnalyticsPoint {
+  timestamp: string
+  total: number
+}
+
+export interface AnalyticsBreakdownItem {
+  value: string
+  label: string
+  total: number
+  percentage: number
+}
+
+export interface AnalyticsGeoCountry extends AnalyticsBreakdownItem {
+  code: string | null
+}
+
+export interface AnalyticsGeoCity extends AnalyticsBreakdownItem {
+  country: string | null
+  countryCode: string | null
+  latitude: number | null
+  longitude: number | null
+}
+
+export type AnalyticsFilters = Partial<{
+  eventType: string[]
+  device: string[]
+  os: string[]
+  browser: string[]
+  language: string[]
+  country: string[]
+  city: string[]
+  continent: string[]
+  referer: string[]
+  isBot: Array<'bot' | 'human'>
+  utmSource: string[]
+  utmMedium: string[]
+  utmCampaign: string[]
+  utmContent: string[]
+  utmTerm: string[]
+}>
+
+export interface AnalyticsFilterOption {
+  value: string
+  label: string
+  count: number
+  percentage: number
+}
+
+export interface AnalyticsFilterGroup {
+  id: keyof AnalyticsFilters
+  label: string
+  type: 'single' | 'multi'
+  options: AnalyticsFilterOption[]
+}
+
+export interface AnalyticsTimeBucket {
+  value: string
+  label: string
+  total: number
+  percentage: number
+}
+
+export interface AnalyticsAggregation {
+  interval: string
+  totalEvents: number
+  totalClicks: number
+  totalScans: number
+  timeSeries?: AnalyticsPoint[]
+  byCountry?: Array<AnalyticsBreakdownItem & { code?: string | null }>
+  byCity?: AnalyticsBreakdownItem[]
+  byContinent?: AnalyticsBreakdownItem[]
+  byDevice?: AnalyticsBreakdownItem[]
+  byOs?: AnalyticsBreakdownItem[]
+  byBrowser?: AnalyticsBreakdownItem[]
+  byLanguage?: AnalyticsBreakdownItem[]
+  byReferer?: AnalyticsBreakdownItem[]
+  byEventType?: AnalyticsBreakdownItem[]
+  byBotStatus?: AnalyticsBreakdownItem[]
+  byWeekday?: AnalyticsTimeBucket[]
+  byHour?: AnalyticsTimeBucket[]
+  byUtmSource?: AnalyticsBreakdownItem[]
+  byUtmMedium?: AnalyticsBreakdownItem[]
+  byUtmCampaign?: AnalyticsBreakdownItem[]
+  byUtmContent?: AnalyticsBreakdownItem[]
+  byUtmTerm?: AnalyticsBreakdownItem[]
+  geo?: {
+    countries: AnalyticsGeoCountry[]
+    cities: AnalyticsGeoCity[]
+  }
+  eventsFlow?: Array<{
+    id: string
+    linkId?: string
+    eventType?: 'click' | 'scan'
+    device?: string | null
+    os?: string | null
+    browser?: string | null
+    referer?: string | null
+    country?: string | null
+    city?: string | null
+    continent?: string | null
+    language?: string | null
+    latitude?: number | null
+    longitude?: number | null
+    isBot?: boolean
+    utm?: Record<string, string | null> | null
+    metadata?: Record<string, unknown> | null
+    occurredAt: string
+  }>
+  pagination?: {
+    page: number
+    pageSize: number
+  }
+  availableFilters?: AnalyticsFilterGroup[]
+  appliedFilters?: AnalyticsFilters
 }
 
 export interface PublicStatsTogglePayload {

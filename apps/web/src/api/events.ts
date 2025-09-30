@@ -7,6 +7,7 @@ export const fetchEventsAnalytics = async (params: {
   linkId?: string | null
   page?: number
   pageSize?: number
+  filters?: string
 }) => {
   const response = await apiClient.get('/api/events', {
     params: {
@@ -14,7 +15,8 @@ export const fetchEventsAnalytics = async (params: {
       projectId: params.projectId ?? undefined,
       linkId: params.linkId ?? undefined,
       page: params.page,
-      pageSize: params.pageSize
+      pageSize: params.pageSize,
+      filters: params.filters
     }
   })
 

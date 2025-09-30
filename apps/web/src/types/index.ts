@@ -1,3 +1,15 @@
+import type {
+  AnalyticsAggregation,
+  AnalyticsBreakdownItem,
+  AnalyticsFilterGroup,
+  AnalyticsFilterOption,
+  AnalyticsFilters,
+  AnalyticsGeoCity,
+  AnalyticsGeoCountry,
+  AnalyticsPoint,
+  AnalyticsTimeBucket
+} from '@p42/shared'
+
 export interface Workspace {
   id: string
   name: string
@@ -39,40 +51,16 @@ export interface Link {
   }
 }
 
-export interface AnalyticsPoint {
-  timestamp: string
-  total: number
-}
-
-export interface AnalyticsAggregation {
-  interval: string
-  totalEvents: number
-  timeSeries?: AnalyticsPoint[]
-  byCountry?: Array<{ label: string; total: number }>
-  byCity?: Array<{ label: string; total: number }>
-  byContinent?: Array<{ label: string; total: number }>
-  byDevice?: Array<{ label: string; total: number }>
-  byOs?: Array<{ label: string; total: number }>
-  byBrowser?: Array<{ label: string; total: number }>
-  byLanguage?: Array<{ label: string; total: number }>
-  byReferer?: Array<{ label: string; total: number }>
-  eventsFlow?: Array<{
-    id: string
-    linkId?: string
-    eventType?: 'click' | 'scan'
-    device?: string | null
-    referer?: string | null
-    country?: string | null
-    city?: string | null
-    language?: string | null
-    utm?: Record<string, string | null> | null
-    metadata?: Record<string, unknown> | null
-    occurredAt: string
-  }>
-  pagination?: {
-    page: number
-    pageSize: number
-  }
+export type {
+  AnalyticsAggregation,
+  AnalyticsBreakdownItem,
+  AnalyticsFilterGroup,
+  AnalyticsFilterOption,
+  AnalyticsFilters,
+  AnalyticsGeoCity,
+  AnalyticsGeoCountry,
+  AnalyticsPoint,
+  AnalyticsTimeBucket
 }
 
 export interface Project {

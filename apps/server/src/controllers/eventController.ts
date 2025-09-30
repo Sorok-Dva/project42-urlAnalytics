@@ -2,6 +2,7 @@ import { type Request, type Response } from 'express'
 import type { AggregationInterval } from '@p42/shared'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { getLinkAnalytics } from '../services/linkService'
+import { parseAnalyticsFilters } from '../lib/analyticsFilters'
 
 const allowedIntervals: AggregationInterval[] = ['all', '1y', '3m', '1m', '1w', '1d']
 
@@ -21,7 +22,8 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
     linkId: typeof req.query.linkId === 'string' ? req.query.linkId : undefined,
     interval: parseInterval(req.query.period),
     page: req.query.page ? Number(req.query.page) : undefined,
-    pageSize: req.query.pageSize ? Number(req.query.pageSize) : undefined
+    pageSize: req.query.pageSize ? Number(req.query.pageSize) : undefined,
+    filters: parseAnalyticsFilters(req.query.filters)
   })
 
   res.json({ analytics })

@@ -30,7 +30,7 @@ export const DeeplinksPage = () => {
     const fallbackDomain = import.meta.env.VITE_DEFAULT_DOMAIN ?? 'url.p42.fr';
     const publicBaseUrl = import.meta.env.VITE_PUBLIC_BASE_URL;
     const buildShortUrl = (link) => {
-        const baseCandidate = (link && link.domain && link.domain.domain) || publicBaseUrl || fallbackDomain;
+        const baseCandidate = link.domain?.domain || publicBaseUrl || fallbackDomain;
         if (!baseCandidate)
             return link.slug;
         const withProtocol = baseCandidate.startsWith('http') ? baseCandidate : `https://${baseCandidate}`;

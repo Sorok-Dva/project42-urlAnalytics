@@ -16,6 +16,7 @@ import {
   unarchiveLink,
   updateLink
 } from '../services/linkService'
+import { parseAnalyticsFilters } from '../lib/analyticsFilters'
 
 const allowedIntervals: AggregationInterval[] = ['all', '1y', '3m', '1m', '1w', '1d']
 const parseInterval = (value: unknown, fallback: AggregationInterval = '1m'): AggregationInterval => {
@@ -72,7 +73,8 @@ export const analytics = asyncHandler(async (req: Request, res: Response) => {
     linkId: req.params.id,
     interval: parseInterval(req.query.interval),
     page: req.query.page ? Number(req.query.page) : undefined,
-    pageSize: req.query.pageSize ? Number(req.query.pageSize) : undefined
+    pageSize: req.query.pageSize ? Number(req.query.pageSize) : undefined,
+    filters: parseAnalyticsFilters(req.query.filters)
   })
   res.json({ analytics })
 })

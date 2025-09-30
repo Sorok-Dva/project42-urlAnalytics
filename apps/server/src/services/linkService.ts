@@ -13,7 +13,7 @@ import { parseUserAgent, isBotUserAgent } from '../lib/userAgent'
 import { dispatchWebhooks } from '../lib/webhooks'
 import { ensureWorkspaceLimit } from './workspaceService'
 import { publishAnalyticsEvent } from '../lib/eventBus'
-import { AggregationInterval, ApiLinkSchema } from '@p42/shared'
+import { AggregationInterval, ApiLinkSchema, type AnalyticsFilters } from '@p42/shared'
 import { buildEventsFlow, buildTimeSeries, fetchEventsForInterval, summarizeByDimension } from '../lib/analytics'
 
 const linkCreationSchema = ApiLinkSchema.extend({
@@ -397,28 +397,228 @@ export const getLinkAnalytics = async (params: {
   interval: typeof AggregationInterval[number]
   page?: number
   pageSize?: number
+  filters?: AnalyticsFilters
 }) => {
   const page = params.page ?? 1
   const pageSize = params.pageSize ?? 25
-  const events = await fetchEventsForInterval(params)
+  const events = await fetchEventsForInterval({ ...params, filters: params.filters })
   const timeSeries = buildTimeSeries(events, params.interval)
   const offset = (page - 1) * pageSize
   const pagedEvents = events.slice(offset, offset + pageSize)
+  const totalEvents = events.length
+  const totalClicks = events.filter(event => event.eventType === 'click').length
+  const totalScans = events.filter(event => event.eventType === 'scan').length
+
+  const withPercentage = <T extends { total: number }>(items: Array<T & { value?: string; label?: string }>) =>
+    items.map(item => ({
+      ...item,
+      percentage: totalEvents === 0 ? 0 : Math.round((item.total / totalEvents) * 10000) / 100
+    }))
+
+  const summarise = (dimension: keyof LinkEvent, options?: Parameters<typeof summarizeByDimension>[2]) =>
+    withPercentage(summarizeByDimension(events, dimension, options))
+
+  const normalizePercentage = (value: number) => (totalEvents === 0 ? 0 : Math.round((value / totalEvents) * 10000) / 100)
+
+  const byCountry = summarise('country').map(item => ({
+    ...item,
+    code: /^[A-Za-z]{2,3}$/.test(item.value ?? '') ? (item.value ?? '').toUpperCase() : null
+  }))
+  const byCity = summarise('city')
+  const byContinent = summarise('continent')
+  const byDevice = summarise('device')
+  const byOs = summarise('os')
+  const byBrowser = summarise('browser')
+  const byLanguage = summarise('language')
+  const byReferer = summarise('referer')
+  const byEventType = summarise('eventType', {
+    labelFormatter: value => (value === 'click' ? 'Clicks' : value === 'scan' ? 'Scans' : value)
+  })
+
+  const botBreakdown = withPercentage([
+    { value: 'human', label: 'Humans', total: events.filter(event => !event.isBot).length },
+    { value: 'bot', label: 'Bots', total: events.filter(event => event.isBot).length }
+  ])
+
+  const summarizeUtm = (key: 'source' | 'medium' | 'campaign' | 'content' | 'term') => {
+    const bucket = new Map<string, { value: string; label: string; total: number }>()
+    events.forEach(event => {
+      const raw = event.utm?.[key] ?? null
+      const value = raw && raw.trim().length > 0 ? raw : 'unknown'
+      const label = value === 'unknown' ? 'Unknown' : value
+      const existing = bucket.get(value)
+      if (existing) {
+        existing.total += 1
+      } else {
+        bucket.set(value, { value, label, total: 1 })
+      }
+    })
+    return withPercentage(Array.from(bucket.values()).sort((a, b) => b.total - a.total))
+  }
+
+  const byUtmSource = summarizeUtm('source')
+  const byUtmMedium = summarizeUtm('medium')
+  const byUtmCampaign = summarizeUtm('campaign')
+  const byUtmContent = summarizeUtm('content')
+  const byUtmTerm = summarizeUtm('term')
+
+  const weekdayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
+  const weekdayBuckets = new Map<number, number>()
+  const hourBuckets = new Map<number, number>()
+
+  events.forEach(event => {
+    const occurred = event.occurredAt instanceof Date ? event.occurredAt : new Date(event.occurredAt)
+    const weekday = occurred.getUTCDay()
+    weekdayBuckets.set(weekday, (weekdayBuckets.get(weekday) ?? 0) + 1)
+    const hour = occurred.getUTCHours()
+    hourBuckets.set(hour, (hourBuckets.get(hour) ?? 0) + 1)
+  })
+
+  const weekdayOrder = [1, 2, 3, 4, 5, 6, 0]
+  const byWeekday = weekdayOrder.map(index => ({
+    value: index.toString(),
+    label: weekdayNames[index],
+    total: weekdayBuckets.get(index) ?? 0,
+    percentage: normalizePercentage(weekdayBuckets.get(index) ?? 0)
+  }))
+
+  const byHour = Array.from({ length: 24 }, (_, hour) => ({
+    value: hour.toString(),
+    label: `${hour.toString().padStart(2, '0')}h`,
+    total: hourBuckets.get(hour) ?? 0,
+    percentage: normalizePercentage(hourBuckets.get(hour) ?? 0)
+  }))
+
+  const geoCountry = byCountry
+    .filter(item => item.value && item.value !== 'unknown')
+    .map(item => ({
+      value: item.value!,
+      label: item.label!,
+      total: item.total,
+      percentage: item.percentage,
+      code: item.code ?? null
+    }))
+
+  const cityBuckets = new Map<
+    string,
+    {
+      value: string
+      label: string
+      country: string | null
+      countryCode: string | null
+      total: number
+      latSum: number
+      lonSum: number
+    }
+  >()
+
+  events.forEach(event => {
+    if (typeof event.latitude !== 'number' || typeof event.longitude !== 'number') return
+    const rawCity = event.city && event.city.trim().length > 0 ? event.city : 'unknown'
+    const rawCountry = event.country && event.country.trim().length > 0 ? event.country : null
+    const key = `${rawCity}|${rawCountry ?? 'unknown'}`
+    const existing = cityBuckets.get(key)
+    if (existing) {
+      existing.total += 1
+      existing.latSum += event.latitude
+      existing.lonSum += event.longitude
+    } else {
+      cityBuckets.set(key, {
+        value: rawCity,
+        label: rawCity === 'unknown' ? 'Unknown city' : rawCity,
+        country: rawCountry,
+        countryCode: rawCountry && /^[A-Za-z]{2,3}$/.test(rawCountry) ? rawCountry.toUpperCase() : null,
+        total: 1,
+        latSum: event.latitude,
+        lonSum: event.longitude
+      })
+    }
+  })
+
+  const geoCities = withPercentage(
+    Array.from(cityBuckets.values())
+      .map(entry => ({
+        value: entry.value,
+        label: entry.label,
+        country: entry.country,
+        countryCode: entry.countryCode,
+        total: entry.total,
+        latitude: entry.latSum / entry.total,
+        longitude: entry.lonSum / entry.total
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 250)
+  )
+
+  const appliedFilters = params.filters ?? {}
+  const optionShouldPersist = (filterId: keyof AnalyticsFilters, value: string) => {
+    const selected = appliedFilters[filterId]
+    if (!selected) return false
+    return selected.includes(value as never)
+  }
+
+  const toFilterOptions = (filterId: keyof AnalyticsFilters, items: Array<{ value?: string; label?: string; total: number; percentage: number }>) =>
+    items
+      .filter(item => item.total > 0 || (item.value && optionShouldPersist(filterId, item.value)))
+      .map(item => ({
+        value: item.value ?? 'unknown',
+        label: item.label ?? 'Unknown',
+        count: item.total,
+        percentage: item.percentage
+      }))
+      .sort((a, b) => b.count - a.count)
+
+  const availableFilters = [
+    { id: 'eventType' as const, label: 'Type d\'événement', options: toFilterOptions('eventType', byEventType) },
+    { id: 'device' as const, label: 'Appareil', options: toFilterOptions('device', byDevice) },
+    { id: 'os' as const, label: 'Système', options: toFilterOptions('os', byOs) },
+    { id: 'browser' as const, label: 'Navigateur', options: toFilterOptions('browser', byBrowser) },
+    { id: 'language' as const, label: 'Langue', options: toFilterOptions('language', byLanguage) },
+    { id: 'country' as const, label: 'Pays', options: toFilterOptions('country', byCountry) },
+    { id: 'city' as const, label: 'Ville', options: toFilterOptions('city', byCity) },
+    { id: 'continent' as const, label: 'Continent', options: toFilterOptions('continent', byContinent) },
+    { id: 'referer' as const, label: 'Referer', options: toFilterOptions('referer', byReferer) },
+    { id: 'isBot' as const, label: 'Type de trafic', options: toFilterOptions('isBot', botBreakdown) },
+    { id: 'utmSource' as const, label: 'UTM Source', options: toFilterOptions('utmSource', byUtmSource) },
+    { id: 'utmMedium' as const, label: 'UTM Medium', options: toFilterOptions('utmMedium', byUtmMedium) },
+    { id: 'utmCampaign' as const, label: 'UTM Campaign', options: toFilterOptions('utmCampaign', byUtmCampaign) },
+    { id: 'utmContent' as const, label: 'UTM Content', options: toFilterOptions('utmContent', byUtmContent) },
+    { id: 'utmTerm' as const, label: 'UTM Term', options: toFilterOptions('utmTerm', byUtmTerm) }
+  ]
+    .map(group => ({ ...group, type: 'multi' as const }))
+    .filter(group => group.options.length > 0)
 
   return {
     interval: params.interval,
-    totalEvents: events.length,
+    totalEvents,
+    totalClicks,
+    totalScans,
     timeSeries,
-    byCountry: summarizeByDimension(events, 'country'),
-    byCity: summarizeByDimension(events, 'city'),
-    byContinent: summarizeByDimension(events, 'continent'),
-    byDevice: summarizeByDimension(events, 'device'),
-    byOs: summarizeByDimension(events, 'os'),
-    byBrowser: summarizeByDimension(events, 'browser'),
-    byLanguage: summarizeByDimension(events, 'language'),
-    byReferer: summarizeByDimension(events, 'referer'),
+    byCountry,
+    byCity,
+    byContinent,
+    byDevice,
+    byOs,
+    byBrowser,
+    byLanguage,
+    byReferer,
+    byEventType,
+    byBotStatus: botBreakdown,
+    byWeekday,
+    byHour,
+    byUtmSource,
+    byUtmMedium,
+    byUtmCampaign,
+    byUtmContent,
+    byUtmTerm,
+    geo: {
+      countries: geoCountry,
+      cities: geoCities
+    },
     eventsFlow: buildEventsFlow(pagedEvents),
-    pagination: { page, pageSize }
+    pagination: { page, pageSize },
+    availableFilters,
+    appliedFilters
   }
 }
 
@@ -444,7 +644,7 @@ export const exportLinkAnalytics = async (
   if (format === 'json') return JSON.stringify(analytics, null, 2)
 
   const headers = ['timestamp', 'total']
-  const rows = analytics.timeSeries.map(row => `${row.timestamp},${row.total}`)
+  const rows = (analytics.timeSeries ?? []).map(row => `${row.timestamp},${row.total}`)
   return [headers.join(','), ...rows].join('\n')
 }
 

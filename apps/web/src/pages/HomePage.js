@@ -36,8 +36,42 @@ export const HomePage = () => {
     const { workspaceId } = useAuth();
     const [interval, setInterval] = useState('1m');
     const { data, isLoading } = useQuery({ queryKey: ['overview'], queryFn: fetchOverview });
-    useRealtimeAnalytics(workspaceId ? [`workspace:${workspaceId}`] : [], () => {
-        queryClient.invalidateQueries({ queryKey: ['overview'] });
+    useRealtimeAnalytics(workspaceId ? [`workspace:${workspaceId}`] : [], event => {
+        queryClient.setQueryData(['overview'], (previous) => {
+            if (!previous)
+                return previous;
+            const metrics = {
+                ...previous.metrics,
+                totalClicks: (previous.metrics?.totalClicks ?? 0) + 1
+            };
+            const occurredAt = dayjs(event.event.occurredAt);
+            const dayKey = occurredAt.startOf('day').toISOString();
+            const recentClicks = Array.isArray(previous.recentClicks) ? [...previous.recentClicks] : [];
+            const existingIndex = recentClicks.findIndex((point) => dayjs(point.timestamp).isSame(dayKey, 'day'));
+            if (existingIndex >= 0) {
+                const current = recentClicks[existingIndex];
+                recentClicks[existingIndex] = { ...current, total: (current.total ?? 0) + 1 };
+            }
+            else {
+                recentClicks.push({ timestamp: dayKey, total: 1 });
+            }
+            recentClicks.sort((a, b) => dayjs(a.timestamp).valueOf() - dayjs(b.timestamp).valueOf());
+            const nextEvents = [
+                {
+                    ...event.event,
+                    eventType: event.eventType,
+                    linkId: event.linkId,
+                    projectId: event.projectId
+                },
+                ...(previous.events ?? [])
+            ].slice(0, 20);
+            return {
+                ...previous,
+                metrics,
+                recentClicks,
+                events: nextEvents
+            };
+        });
     });
     const chartData = useMemo(() => {
         if (!data?.recentClicks)
