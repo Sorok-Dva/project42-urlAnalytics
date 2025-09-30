@@ -4,8 +4,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../stores/auth'
 import type { AggregationInterval } from '@p42/shared'
-import { fetchLinks, fetchLinkAnalytics, fetchLinkDetails, toggleLinkPublicStats, exportLinkStats } from '../api/links'
+import { fetchLinks, fetchLinkDetails, toggleLinkPublicStats, exportLinkStats } from '../api/links'
 import { fetchProjects } from '../api/projects'
+import { fetchEventsAnalytics } from '../api/events'
 import { LineChart } from '../components/LineChart'
 import { IntervalSelector } from '../components/IntervalSelector'
 import { DataTable } from '../components/DataTable'
@@ -18,7 +19,8 @@ export const StatisticsPage = () => {
   const queryClient = useQueryClient()
   const { workspaceId } = useAuth()
   const [interval, setInterval] = useState<AggregationInterval>('1m')
-  const [selectedLink, setSelectedLink] = useState<string | null>(null)
+  const [selectedLink, setSelectedLink] = useState<string>('all')
+  const [selectedProject, setSelectedProject] = useState<string>('all')
 
   const linksQuery = useQuery({ queryKey: ['links'], queryFn: () => fetchLinks({ status: 'active' }) })
   const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
@@ -26,26 +28,35 @@ export const StatisticsPage = () => {
   useEffect(() => {
     if (params.linkId) {
       setSelectedLink(params.linkId)
-    } else if (!selectedLink && linksQuery.data?.length) {
-      setSelectedLink(linksQuery.data[0].id)
     }
-  }, [params.linkId, linksQuery.data, selectedLink])
+  }, [params.linkId])
 
   const analyticsQuery = useQuery({
-    queryKey: ['analytics', selectedLink, interval],
-    enabled: !!selectedLink,
-    queryFn: () => fetchLinkAnalytics(selectedLink!, { interval })
+    queryKey: ['analytics', selectedProject, selectedLink, interval],
+    queryFn: () =>
+      fetchEventsAnalytics({
+        period: interval,
+        projectId: selectedProject !== 'all' ? selectedProject : undefined,
+        linkId: selectedLink !== 'all' ? selectedLink : undefined
+      })
   })
 
-  useRealtimeAnalytics(
-    [workspaceId ? `workspace:${workspaceId}` : null, selectedLink ? `link:${selectedLink}` : null].filter(Boolean) as string[],
-    () => analyticsQuery.refetch()
-  )
+  const rooms = [
+    workspaceId ? `workspace:${workspaceId}` : null,
+    selectedLink !== 'all' ? `link:${selectedLink}` : null,
+    selectedProject !== 'all' ? `project:${selectedProject}` : null
+  ].filter(Boolean) as string[]
+
+  useRealtimeAnalytics(rooms, event => {
+    if (selectedLink !== 'all' && event.linkId !== selectedLink) return
+    if (selectedProject !== 'all' && event.projectId !== selectedProject) return
+    analyticsQuery.refetch()
+  })
 
   const linkDetailsQuery = useQuery({
     queryKey: ['link', selectedLink],
-    enabled: !!selectedLink,
-    queryFn: () => fetchLinkDetails(selectedLink!)
+    enabled: selectedLink !== 'all',
+    queryFn: () => fetchLinkDetails(selectedLink)
   })
 
   const analytics = analyticsQuery.data
@@ -57,7 +68,7 @@ export const StatisticsPage = () => {
   }, [analytics])
 
   const handleExport = async (format: 'csv' | 'json') => {
-    if (!selectedLink) return
+    if (selectedLink === 'all') return
     const content = await exportLinkStats(selectedLink, format)
     const blob = new Blob([content], { type: format === 'csv' ? 'text/csv' : 'application/json' })
     const url = URL.createObjectURL(blob)
@@ -69,7 +80,7 @@ export const StatisticsPage = () => {
   }
 
   const handleTogglePublic = async () => {
-    if (!selectedLink || !linkDetails) return
+    if (selectedLink === 'all' || !linkDetails) return
     await toggleLinkPublicStats(selectedLink, !linkDetails.publicStats)
     await queryClient.invalidateQueries({ queryKey: ['link', selectedLink] })
   }
@@ -88,9 +99,12 @@ export const StatisticsPage = () => {
   const topReferers = (analytics.byReferer ?? []).slice(0, 6)
   const eventsFlow = (analytics.eventsFlow ?? []).slice(0, 10)
 
-  const shareUrl = linkDetails?.publicStats && linkDetails.publicStatsToken
-    ? `${import.meta.env.VITE_PUBLIC_BASE_URL}/share/link/${linkDetails.publicStatsToken}`
-    : 'Private'
+  const shareUrl =
+    selectedLink !== 'all' && linkDetails?.publicStats && linkDetails.publicStatsToken
+      ? `${import.meta.env.VITE_PUBLIC_BASE_URL}/share/link/${linkDetails.publicStatsToken}`
+      : selectedLink === 'all'
+        ? 'N/A'
+        : 'Private'
 
   return (
     <div className="space-y-8">
@@ -101,17 +115,23 @@ export const StatisticsPage = () => {
         </div>
         <IntervalSelector value={interval} onChange={setInterval} />
         <select
-          value={selectedLink ?? ''}
+          value={selectedLink}
           onChange={event => setSelectedLink(event.target.value)}
           className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
         >
+          <option value="all">{t('statistics.allLinks', 'All links')}</option>
           {linksQuery.data?.map(link => (
             <option key={link.id} value={link.id}>
               {link.slug}
             </option>
           ))}
         </select>
-        <select className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100">
+        <select
+          value={selectedProject}
+          onChange={event => setSelectedProject(event.target.value)}
+          className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+        >
+          <option value="all">{t('statistics.allProjects', 'All projects')}</option>
           {projectsQuery.data?.map(project => (
             <option key={project.id} value={project.id}>
               {project.name}
@@ -120,7 +140,8 @@ export const StatisticsPage = () => {
         </select>
         <button
           onClick={handleTogglePublic}
-          className={`rounded-md px-3 py-2 text-sm ${linkDetails?.publicStats ? 'bg-accent/20 text-accent' : 'border border-slate-700 text-slate-300'}`}
+          className={`rounded-md px-3 py-2 text-sm ${selectedLink === 'all' ? 'border border-slate-700 text-slate-500 cursor-not-allowed' : linkDetails?.publicStats ? 'bg-accent/20 text-accent' : 'border border-slate-700 text-slate-300'}`}
+          disabled={selectedLink === 'all'}
         >
           {t('statistics.makePublic')}
         </button>
@@ -134,10 +155,26 @@ export const StatisticsPage = () => {
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold">{t('home.recentClicks')}</h3>
           <div className="flex gap-2">
-            <button onClick={() => handleExport('csv')} className="rounded-md border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-accent">
+            <button
+              onClick={() => handleExport('csv')}
+              disabled={selectedLink === 'all'}
+              className={`rounded-md border px-3 py-1 text-xs ${
+                selectedLink === 'all'
+                  ? 'cursor-not-allowed border-slate-800 text-slate-600'
+                  : 'border-slate-700 text-slate-200 hover:border-accent'
+              }`}
+            >
               {t('statistics.exportCsv')}
             </button>
-            <button onClick={() => handleExport('json')} className="rounded-md border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-accent">
+            <button
+              onClick={() => handleExport('json')}
+              disabled={selectedLink === 'all'}
+              className={`rounded-md border px-3 py-1 text-xs ${
+                selectedLink === 'all'
+                  ? 'cursor-not-allowed border-slate-800 text-slate-600'
+                  : 'border-slate-700 text-slate-200 hover:border-accent'
+              }`}
+            >
               {t('statistics.exportJson')}
             </button>
           </div>

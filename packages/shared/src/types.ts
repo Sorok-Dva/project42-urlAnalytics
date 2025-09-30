@@ -52,7 +52,7 @@ export const ApiLinkSchema = z.object({
   originalUrl: z.string().url(),
   slug: z.string().min(3),
   domain: z.string().min(1),
-  projectId: z.string().uuid().nullable(),
+  projectId: z.string().uuid().nullish(),
   comment: z.string().max(2048).optional(),
   geoRules: z
     .array(

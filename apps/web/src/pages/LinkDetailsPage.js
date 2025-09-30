@@ -12,6 +12,7 @@ import { EmptyState } from '../components/EmptyState';
 import { Skeleton } from '../components/Skeleton';
 import { StatusBadge } from '../components/StatusBadge';
 import dayjs from '../lib/dayjs';
+import { getApiErrorMessage } from '../lib/apiError';
 const buildShareUrl = (token) => {
     if (!token)
         return null;
@@ -30,6 +31,7 @@ export const LinkDetailsPage = () => {
     });
     const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
     const { data: domains } = useQuery({ queryKey: ['domains'], queryFn: fetchDomains });
+    const fallbackDomain = import.meta.env.VITE_DEFAULT_DOMAIN ?? 'url.p42.fr';
     const [form, setForm] = useState({
         originalUrl: '',
         slug: '',
@@ -75,10 +77,23 @@ export const LinkDetailsPage = () => {
             queryClient.invalidateQueries({ queryKey: ['links'] });
             queryClient.invalidateQueries({ queryKey: ['link', linkId] });
             push({ title: 'Modifications enregistrées' });
+        },
+        onError: error => {
+            push({ title: 'Sauvegarde impossible', description: getApiErrorMessage(error) });
         }
     });
     const filteredProjects = useMemo(() => projects ?? [], [projects]);
-    const filteredDomains = useMemo(() => domains ?? [], [domains]);
+    const filteredDomains = useMemo(() => {
+        const list = domains ?? [];
+        if (!fallbackDomain)
+            return list;
+        const map = new Map();
+        list.forEach(domain => map.set(domain.domain, domain));
+        if (!map.has(fallbackDomain)) {
+            map.set(fallbackDomain, { id: 'default-domain', domain: fallbackDomain, status: 'verified' });
+        }
+        return Array.from(map.values());
+    }, [domains, fallbackDomain]);
     const handleSubmit = async (event) => {
         event.preventDefault();
         await updateMutation.mutateAsync({

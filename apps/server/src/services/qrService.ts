@@ -12,12 +12,21 @@ export const listQrCodes = async (workspaceId: string, filters?: { search?: stri
   return QrCode.findAll({ where, order: [['createdAt', 'DESC']] })
 }
 
+const defaultDesign = () => ({
+  modules: 'dots-classic',
+  pilotCenter: 'rounded',
+  pilotBorder: 'rounded',
+  foreground: '#111827',
+  background: 'transparent',
+  logo: { type: 'p42', value: null }
+})
+
 export const createQrForLink = async (payload: {
   workspaceId: string
   projectId?: string | null
   linkId: string
   name: string
-  design: Record<string, unknown>
+  design?: Record<string, unknown>
   createdById: string
 }) => {
   const link = await Link.findByPk(payload.linkId)
@@ -31,13 +40,15 @@ export const createQrForLink = async (payload: {
     linkId: link.id,
     name: payload.name,
     code,
-    design: payload.design,
+    design: payload.design ?? defaultDesign(),
     createdById: payload.createdById
   })
 
+  const design = (qr.design as Record<string, unknown>) ?? defaultDesign()
+
   return {
     qr,
-    svg: await generateQrSvg(`${code}`, payload.design)
+    svg: await generateQrSvg(`${code}`, design)
   }
 }
 
@@ -49,7 +60,7 @@ export const createQrFromUrl = async (payload: {
   domain: string
   slug?: string
   createdById: string
-  design: Record<string, unknown>
+  design?: Record<string, unknown>
 }) => {
   const link = await createLink({
     workspaceId: payload.workspaceId,
@@ -64,13 +75,14 @@ export const createQrFromUrl = async (payload: {
 
   await ensureWorkspaceLimit(payload.workspaceId, 'qrCodes')
   const code = nanoid(10)
+  const design = payload.design ?? defaultDesign()
   const qr = await QrCode.create({
     workspaceId: payload.workspaceId,
     projectId: payload.projectId ?? null,
     linkId: link.id,
     name: payload.name,
     code,
-    design: payload.design,
+    design,
     createdById: payload.createdById
   })
 
@@ -78,7 +90,7 @@ export const createQrFromUrl = async (payload: {
 
   return {
     qr,
-    svg: await generateQrSvg(`${code}`, payload.design)
+    svg: await generateQrSvg(`${code}`, design)
   }
 }
 

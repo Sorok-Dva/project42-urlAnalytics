@@ -13,3 +13,11 @@ export const downloadQrCode = async (id) => {
     });
     return response.data;
 };
+export const fetchQrCode = async (id) => {
+    const response = await apiClient.get(`/api/qr/${id}`);
+    return response.data.qr;
+};
+export const updateQrCode = async (id, payload) => {
+    const response = await apiClient.patch(`/api/qr/${id}`, payload);
+    return response.data.qr;
+};

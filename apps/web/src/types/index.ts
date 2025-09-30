@@ -65,6 +65,8 @@ export interface AnalyticsAggregation {
     country?: string | null
     city?: string | null
     language?: string | null
+    utm?: Record<string, string | null> | null
+    metadata?: Record<string, unknown> | null
     occurredAt: string
   }>
   pagination?: {
@@ -82,11 +84,32 @@ export interface Project {
   publicStatsToken?: string | null
 }
 
+export interface QrDesign {
+  modules: 'dots-classic' | 'dots-rounded' | 'dots-diamond' | 'dots-square'
+  pilotCenter: 'dot' | 'rounded' | 'square'
+  pilotBorder: 'square' | 'dot' | 'rounded'
+  foreground: string
+  background?: string
+  logo: {
+    type: 'p42' | 'app' | 'custom' | 'none'
+    value?: string | null
+  }
+}
+
 export interface QrCodeSummary {
   id: string
   name: string
   code: string
   totalScans: number
   linkId?: string | null
-  design: Record<string, unknown>
+  design: QrDesign
+}
+
+export interface QrCodeDetail extends QrCodeSummary {
+  link?: {
+    id: string
+    slug: string
+    originalUrl: string
+    domainId?: string | null
+  } | null
 }

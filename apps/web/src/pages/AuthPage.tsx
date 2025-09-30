@@ -5,6 +5,7 @@ import { useAuth } from '../stores/auth'
 import { registerRequest } from '../api/auth'
 import { Card } from '../components/Card'
 import { StatusBadge } from '../components/StatusBadge'
+import { getApiErrorMessage } from '../lib/apiError'
 
 export const AuthPage = () => {
   const { t } = useTranslation()
@@ -15,23 +16,48 @@ export const AuthPage = () => {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
+  const isFormValid = (() => {
+    const email = form.email.trim()
+    const password = form.password.trim()
+    const name = form.name.trim()
+    if (!email || !password) return false
+    if (!email.includes('@')) return false
+    if (mode === 'register' && !name) return false
+    return true
+  })()
+
   const handleChange = (field: string, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }))
   }
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
+    const email = form.email.trim()
+    const password = form.password.trim()
+    const name = form.name.trim()
+
+    if (!email || !password || (mode === 'register' && !name)) {
+      setError('Veuillez renseigner les champs requis')
+      return
+    }
+
+    if (!email.includes('@')) {
+      setError('Adresse e-mail invalide')
+      return
+    }
+
     setLoading(true)
+    setError(null)
     try {
       if (mode === 'login') {
-        await login({ email: form.email, password: form.password })
+        await login({ email, password })
       } else {
-        await registerRequest({ email: form.email, password: form.password, name: form.name })
-        await login({ email: form.email, password: form.password })
+        await registerRequest({ email, password, name })
+        await login({ email, password })
       }
       navigate('/')
     } catch (err) {
-      setError('Authentication failed')
+      setError(getApiErrorMessage(err, 'Authentication failed'))
     } finally {
       setLoading(false)
     }
@@ -90,6 +116,8 @@ export const AuthPage = () => {
                   onChange={event => handleChange('name', event.target.value)}
                   className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-sm text-slate-100 focus:border-accent focus:outline-none"
                   placeholder="Jane Doe"
+                  autoComplete="name"
+                  required
                 />
               </label>
             )}
@@ -102,6 +130,8 @@ export const AuthPage = () => {
                 onChange={event => handleChange('email', event.target.value)}
                 className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-sm text-slate-100 focus:border-accent focus:outline-none"
                 placeholder="you@example.com"
+                autoComplete="email"
+                required
               />
             </label>
 
@@ -113,6 +143,9 @@ export const AuthPage = () => {
                 onChange={event => handleChange('password', event.target.value)}
                 className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-sm text-slate-100 focus:border-accent focus:outline-none"
                 placeholder="••••••••"
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                minLength={6}
+                required
               />
             </label>
 
@@ -120,7 +153,7 @@ export const AuthPage = () => {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !isFormValid}
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3 text-sm font-semibold text-white shadow-xl shadow-accent/20 transition hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? 'Processing...' : mode === 'login' ? t('auth.signin') : t('auth.signup')}
@@ -128,7 +161,14 @@ export const AuthPage = () => {
 
             <div className="flex items-center justify-between text-sm text-slate-400">
               <span>{mode === 'login' ? "Besoin d'un compte ?" : 'Déjà inscrit ?'}</span>
-              <button onClick={() => setMode(mode === 'login' ? 'register' : 'login')} className="text-accent hover:underline">
+              <button
+                type="button"
+                onClick={() => {
+                  setError(null)
+                  setMode(mode === 'login' ? 'register' : 'login')
+                }}
+                className="text-accent hover:underline"
+              >
                 {mode === 'login' ? t('auth.signup') : t('auth.signin')}
               </button>
             </div>

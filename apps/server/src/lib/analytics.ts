@@ -98,6 +98,7 @@ export const buildEventsFlow = (events: LinkEvent[]) => {
     city: event.city,
     language: event.language,
     occurredAt: event.occurredAt,
-    utm: event.utm
+    utm: event.utm,
+    metadata: event.metadata
   }))
 }

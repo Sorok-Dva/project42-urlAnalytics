@@ -21,6 +21,8 @@
     "title": "Statistiques",
     "makePublic": "Rendre public",
     "share": "URL de partage",
+    "allLinks": "Tous les liens",
+    "allProjects": "Tous les projets",
     "exportCsv": "Exporter CSV",
     "exportJson": "Exporter JSON",
     "eventsFlow": "Flux d'événements",
@@ -37,7 +39,9 @@
   "deeplinks": {
     "title": "Mes liens",
     "search": "Rechercher un lien",
-    "create": "Créer un lien"
+    "create": "Créer un lien",
+    "copySuccess": "Lien copié dans le presse-papiers",
+    "copyError": "Impossible de copier le lien"
   },
   "qr": {
     "title": "Mes QR codes",

@@ -14,6 +14,7 @@ import { StatusBadge } from '../components/StatusBadge'
 import { useAuth } from '../stores/auth'
 import { useRealtimeAnalytics } from '../hooks/useRealtimeAnalytics'
 import dayjs from '../lib/dayjs'
+import { Link2, QrCode, BarChart3, ArrowRight } from 'lucide-react'
 
 const onboardingSteps = [
   'Connect your first domain',
@@ -40,8 +41,48 @@ export const HomePage = () => {
 
   const { data, isLoading } = useQuery({ queryKey: ['overview'], queryFn: fetchOverview })
 
-  useRealtimeAnalytics(workspaceId ? [`workspace:${workspaceId}`] : [], () => {
-    queryClient.invalidateQueries({ queryKey: ['overview'] })
+  useRealtimeAnalytics(workspaceId ? [`workspace:${workspaceId}`] : [], event => {
+    queryClient.setQueryData(['overview'], (previous: any) => {
+      if (!previous) return previous
+
+      const metrics = {
+        ...previous.metrics,
+        totalClicks: (previous.metrics?.totalClicks ?? 0) + 1
+      }
+
+      const occurredAt = dayjs(event.event.occurredAt)
+      const dayKey = occurredAt.startOf('day').toISOString()
+      const recentClicks = Array.isArray(previous.recentClicks) ? [...previous.recentClicks] : []
+      const existingIndex = recentClicks.findIndex((point: { timestamp: string }) =>
+        dayjs(point.timestamp).isSame(dayKey, 'day')
+      )
+      if (existingIndex >= 0) {
+        const current = recentClicks[existingIndex]
+        recentClicks[existingIndex] = { ...current, total: (current.total ?? 0) + 1 }
+      } else {
+        recentClicks.push({ timestamp: dayKey, total: 1 })
+      }
+      recentClicks.sort((a: { timestamp: string }, b: { timestamp: string }) =>
+        dayjs(a.timestamp).valueOf() - dayjs(b.timestamp).valueOf()
+      )
+
+      const nextEvents = [
+        {
+          ...event.event,
+          eventType: event.eventType,
+          linkId: event.linkId,
+          projectId: event.projectId
+        },
+        ...(previous.events ?? [])
+      ].slice(0, 20)
+
+      return {
+        ...previous,
+        metrics,
+        recentClicks,
+        events: nextEvents
+      }
+    })
   })
 
   const chartData = useMemo(() => {
@@ -108,6 +149,71 @@ export const HomePage = () => {
           }
         />
       </div>
+
+      <Card
+        title="Actions rapides"
+        description="Accès direct aux outils essentiels"
+        actions={<button onClick={() => navigate('/deeplinks')} className="text-xs text-accent hover:underline">Aller aux liens</button>}
+      >
+        <div className="grid gap-4 md:grid-cols-3">
+          <button
+            onClick={() => navigate('/deeplinks?create=true')}
+            className="group flex h-full flex-col items-start justify-between rounded-xl border border-slate-800/60 bg-slate-900/40 p-4 text-left transition hover:border-accent/60 hover:bg-slate-900/70"
+          >
+            <div className="flex items-center gap-3">
+              <span className="rounded-full bg-accent/20 p-2 text-accent">
+                <Link2 className="h-5 w-5" />
+              </span>
+              <span className="text-sm font-semibold text-slate-100">Créer un deeplink</span>
+            </div>
+            <p className="mt-3 text-xs text-slate-400">
+              Générer un lien court et tracké en quelques secondes.
+            </p>
+            <span className="mt-4 inline-flex items-center gap-2 text-xs text-accent/80 group-hover:text-accent">
+              Commencer
+              <ArrowRight className="h-4 w-4" />
+            </span>
+          </button>
+
+          <button
+            onClick={() => navigate('/qr')}
+            className="group flex h-full flex-col items-start justify-between rounded-xl border border-slate-800/60 bg-slate-900/40 p-4 text-left transition hover:border-accent/60 hover:bg-slate-900/70"
+          >
+            <div className="flex items-center gap-3">
+              <span className="rounded-full bg-emerald-500/15 p-2 text-emerald-400">
+                <QrCode className="h-5 w-5" />
+              </span>
+              <span className="text-sm font-semibold text-slate-100">Créer un QR Code</span>
+            </div>
+            <p className="mt-3 text-xs text-slate-400">
+              Créez une version scannable et brandée de vos liens.
+            </p>
+            <span className="mt-4 inline-flex items-center gap-2 text-xs text-emerald-400/80 group-hover:text-emerald-300">
+              Designer
+              <ArrowRight className="h-4 w-4" />
+            </span>
+          </button>
+
+          <button
+            onClick={() => navigate('/statistics')}
+            className="group flex h-full flex-col items-start justify-between rounded-xl border border-slate-800/60 bg-slate-900/40 p-4 text-left transition hover:border-accent/60 hover:bg-slate-900/70"
+          >
+            <div className="flex items-center gap-3">
+              <span className="rounded-full bg-blue-500/15 p-2 text-blue-400">
+                <BarChart3 className="h-5 w-5" />
+              </span>
+              <span className="text-sm font-semibold text-slate-100">Voir les statistiques</span>
+            </div>
+            <p className="mt-3 text-xs text-slate-400">
+              Analysez les performances en temps réel et les tendances.
+            </p>
+            <span className="mt-4 inline-flex items-center gap-2 text-xs text-blue-400/80 group-hover:text-blue-300">
+              Explorer
+              <ArrowRight className="h-4 w-4" />
+            </span>
+          </button>
+        </div>
+      </Card>
 
       <Card
         title={t('home.recentClicks')}

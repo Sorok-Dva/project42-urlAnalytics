@@ -1,10 +1,32 @@
 import crypto from 'crypto'
+import { Op, UniqueConstraintError } from 'sequelize'
 import { Domain } from '../models/domain'
-import { Project } from '../models/project'
 import { env } from '../config/env'
 
 export const listDomains = async (workspaceId: string) => {
-  return Domain.findAll({ where: { workspaceId }, order: [['createdAt', 'DESC']] })
+  const defaultDomain = env.defaultDomain.trim().toLowerCase()
+  const existingDefault = await Domain.findOne({ where: { domain: defaultDomain } })
+  if (!existingDefault) {
+    try {
+      await Domain.create({
+        workspaceId: null,
+        projectId: null,
+        domain: defaultDomain,
+        status: 'verified',
+        verificationToken: `default-${crypto.randomBytes(6).toString('hex')}`,
+        verifiedAt: new Date()
+      })
+    } catch (error) {
+      if (!(error instanceof UniqueConstraintError)) throw error
+    }
+  }
+
+  return Domain.findAll({
+    where: {
+      [Op.or]: [{ workspaceId }, { workspaceId: null }]
+    },
+    order: [['workspaceId', 'ASC'], ['createdAt', 'DESC']]
+  })
 }
 
 export const addDomain = async (payload: { workspaceId: string; domain: string; projectId?: string | null }) => {
@@ -12,7 +34,7 @@ export const addDomain = async (payload: { workspaceId: string; domain: string; 
   return Domain.create({
     workspaceId: payload.workspaceId,
     projectId: payload.projectId ?? null,
-    domain: payload.domain,
+    domain: payload.domain.trim().toLowerCase(),
     status: 'pending',
     verificationToken,
     verifiedAt: null

@@ -1,6 +1,52 @@
-import { DataTypes, QueryInterface } from 'sequelize'
+import { AddIndexOptions, DataTypes, IndexDescription, QueryInterface } from 'sequelize'
 
 export const up = async ({ context }: { context: QueryInterface }) => {
+  const ensureIndex = async (
+    table: string,
+    fields: string[],
+    options: AddIndexOptions = {}
+  ) => {
+    const existingIndexes: IndexDescription[] = await context.showIndex(table)
+    const normalizedFields = fields.map(field => field.toLowerCase())
+    const targetName = (options.name ?? `${table}_${fields.join('_')}`).toLowerCase()
+
+    const hasIndex = existingIndexes.some(index => {
+      const indexName = (index.name ?? '').toLowerCase()
+      if (indexName === targetName) {
+        return true
+      }
+
+      const indexFields = (index.fields ?? []).map(field => {
+        if (typeof field === 'string') {
+          return field.toLowerCase()
+        }
+
+        if ('attribute' in field && field.attribute) {
+          return String(field.attribute).toLowerCase()
+        }
+
+        if ('columnName' in field && field.columnName) {
+          return String(field.columnName).toLowerCase()
+        }
+
+        if ('name' in field && field.name) {
+          return String(field.name).toLowerCase()
+        }
+
+        return ''
+      })
+
+      return (
+        indexFields.length === normalizedFields.length &&
+        indexFields.every((value, position) => value === normalizedFields[position])
+      )
+    })
+
+    if (!hasIndex) {
+      await context.addIndex(table, fields, options)
+    }
+  }
+
   await context.createTable('users', {
     id: {
       type: DataTypes.UUID,
@@ -252,9 +298,9 @@ export const up = async ({ context }: { context: QueryInterface }) => {
     updated_at: DataTypes.DATE
   })
 
-  await context.addIndex('links', ['workspace_id'])
-  await context.addIndex('links', ['project_id'])
-  await context.addIndex('links', ['slug', 'domain_id'], { unique: true })
+  await ensureIndex('links', ['workspace_id'])
+  await ensureIndex('links', ['project_id'])
+  await ensureIndex('links', ['slug', 'domain_id'], { unique: true })
 
   await context.createTable('link_events', {
     id: {
@@ -346,8 +392,8 @@ export const up = async ({ context }: { context: QueryInterface }) => {
     updated_at: DataTypes.DATE
   })
 
-  await context.addIndex('link_events', ['workspace_id', 'occurred_at'])
-  await context.addIndex('link_events', ['link_id', 'occurred_at'])
+  await ensureIndex('link_events', ['workspace_id', 'occurred_at'])
+  await ensureIndex('link_events', ['link_id', 'occurred_at'])
 
   await context.createTable('qr_codes', {
     id: {

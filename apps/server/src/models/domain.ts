@@ -3,7 +3,7 @@ import { sequelize } from '../config/database'
 
 export interface DomainAttributes {
   id: string
-  workspaceId: string
+  workspaceId: string | null
   projectId: string | null
   domain: string
   status: 'pending' | 'verified'
@@ -15,12 +15,12 @@ export interface DomainAttributes {
 
 export type DomainCreationAttributes = Optional<
   DomainAttributes,
-  'id' | 'projectId' | 'status' | 'verifiedAt'
+  'id' | 'workspaceId' | 'projectId' | 'status' | 'verifiedAt'
 >
 
 export class Domain extends Model<DomainAttributes, DomainCreationAttributes> implements DomainAttributes {
   declare id: string
-  declare workspaceId: string
+  declare workspaceId: string | null
   declare projectId: string | null
   declare domain: string
   declare status: 'pending' | 'verified'
@@ -39,7 +39,7 @@ Domain.init(
     },
     workspaceId: {
       type: DataTypes.UUID,
-      allowNull: false
+      allowNull: true
     },
     projectId: {
       type: DataTypes.UUID,

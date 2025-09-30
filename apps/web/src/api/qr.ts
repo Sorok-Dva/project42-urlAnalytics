@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import type { QrCodeSummary } from '../types'
+import type { QrCodeDetail, QrCodeSummary } from '../types'
 
 export const fetchQrCodes = async (params?: { search?: string }) => {
   const response = await apiClient.get('/api/qr', { params })
@@ -16,4 +16,14 @@ export const downloadQrCode = async (id: string) => {
     responseType: 'text'
   })
   return response.data as string
+}
+
+export const fetchQrCode = async (id: string) => {
+  const response = await apiClient.get(`/api/qr/${id}`)
+  return response.data.qr as QrCodeDetail
+}
+
+export const updateQrCode = async (id: string, payload: Record<string, unknown>) => {
+  const response = await apiClient.patch(`/api/qr/${id}`, payload)
+  return response.data.qr as QrCodeDetail
 }

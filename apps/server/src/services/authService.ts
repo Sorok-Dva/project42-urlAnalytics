@@ -4,7 +4,6 @@ import { nanoid } from 'nanoid'
 import { User } from '../models/user'
 import { Workspace } from '../models/workspace'
 import { WorkspaceMember } from '../models/workspaceMember'
-import { Domain } from '../models/domain'
 import { env } from '../config/env'
 
 const tokenExpiry = '7d'
@@ -48,15 +47,6 @@ export const registerUser = async (payload: {
     workspaceId: workspace.id,
     userId: user.id,
     role: 'owner'
-  })
-
-  await Domain.create({
-    workspaceId: workspace.id,
-    projectId: null,
-    domain: env.defaultDomain,
-    status: 'verified',
-    verificationToken: `auto-${nanoid(8)}`,
-    verifiedAt: new Date()
   })
 
   return { user, workspace }

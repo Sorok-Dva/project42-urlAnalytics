@@ -13,27 +13,33 @@
   "dependencies": {
     "@headlessui/react": "^1.7.18",
     "@heroicons/react": "^2.1.5",
+    "@p42/shared": "workspace:*",
     "@tanstack/react-query": "^5.29.2",
     "axios": "^1.6.8",
     "clsx": "^2.1.1",
     "dayjs": "^1.11.10",
     "i18next": "^23.10.1",
+    "lucide-react": "^0.544.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hook-form": "^7.51.0",
     "react-i18next": "^13.5.0",
     "react-router-dom": "^6.23.0",
     "recharts": "^2.7.2",
+    "qr-code-styling": "^1.8.0",
     "socket.io-client": "^4.7.5",
     "tailwind-merge": "^1.14.0",
-    "zustand": "^4.5.2",
-    "@p42/shared": "workspace:*",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "zustand": "^4.5.2"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.4.2",
+    "@testing-library/react": "^14.2.1",
+    "@testing-library/user-event": "^14.5.2",
     "@types/node": "^20.12.7",
     "@types/react": "^18.2.74",
     "@types/react-dom": "^18.2.23",
+    "@types/uuid": "^9.0.7",
     "@typescript-eslint/eslint-plugin": "^7.7.1",
     "@typescript-eslint/parser": "^7.7.1",
     "@vitejs/plugin-react": "^4.2.1",
@@ -48,10 +54,6 @@
     "tailwindcss": "^3.4.3",
     "typescript": "^5.4.5",
     "vite": "^5.2.8",
-    "vitest": "^1.5.2",
-    "@testing-library/react": "^14.2.1",
-    "@testing-library/jest-dom": "^6.4.2",
-    "@testing-library/user-event": "^14.5.2",
-    "@types/uuid": "^9.0.7"
+    "vitest": "^1.5.2"
   }
 }

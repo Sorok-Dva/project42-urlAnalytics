@@ -5,6 +5,7 @@ import { StatisticsPage } from '../pages/StatisticsPage'
 import { DeeplinksPage } from '../pages/DeeplinksPage'
 import { LinkDetailsPage } from '../pages/LinkDetailsPage'
 import { QrCodesPage } from '../pages/QrCodesPage'
+import { QrDesignPage } from '../pages/QrDesignPage'
 import { AuthPage } from '../pages/AuthPage'
 import { useAuth } from '../stores/auth'
 
@@ -26,6 +27,7 @@ export const AppRoutes = () => {
           <Route path="deeplinks" element={<DeeplinksPage />} />
           <Route path="deeplinks/:linkId" element={<LinkDetailsPage />} />
           <Route path="qr-codes" element={<QrCodesPage />} />
+          <Route path="qr-codes/:qrId/design" element={<QrDesignPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

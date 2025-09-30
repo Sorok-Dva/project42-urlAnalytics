@@ -2,6 +2,7 @@ import { Router, type Router as ExpressRouter } from 'express'
 import * as authController from '../controllers/authController'
 import * as linkController from '../controllers/linkController'
 import * as projectController from '../controllers/projectController'
+import * as eventController from '../controllers/eventController'
 import * as publicStatsController from '../controllers/publicStatsController'
 import * as domainController from '../controllers/domainController'
 import * as qrController from '../controllers/qrController'
@@ -37,6 +38,8 @@ router.get('/links/:id/stats', linkController.analytics)
 router.get('/links/:id/export', linkController.exportStats)
 router.get('/links/:id', linkController.detail)
 
+router.get('/events', eventController.list)
+
 router.get('/projects', projectController.list)
 router.post('/projects', requireRole('member'), projectController.create)
 router.post('/projects/:id/public', requireRole('member'), projectController.makePublic)
@@ -49,6 +52,8 @@ router.post('/domains/:id/assign', requireRole('admin'), domainController.assign
 router.get('/qr', qrController.list)
 router.post('/qr', requireRole('member'), qrController.create)
 router.get('/qr/:id/download', qrController.download)
+router.get('/qr/:id', qrController.detail)
+router.patch('/qr/:id', requireRole('member'), qrController.update)
 
 router.get('/webhooks', requireRole('admin'), webhookController.list)
 router.post('/webhooks', requireRole('admin'), webhookController.create)

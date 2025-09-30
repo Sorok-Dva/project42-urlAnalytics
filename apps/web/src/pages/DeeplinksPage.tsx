@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next'
 import { fetchLinks, createLinkRequest, archiveLinkRequest, unarchiveLinkRequest, deleteLinkRequest } from '../api/links'
 import { useToast } from '../providers/ToastProvider'
 import { fetchDomains } from '../api/domains'
+import { getApiErrorMessage } from '../lib/apiError'
+import type { Link } from '../types'
 
 const sortOptions = [
   { value: 'recent', label: 'Most recent' },
@@ -28,20 +30,56 @@ export const DeeplinksPage = () => {
     queryFn: () => fetchLinks({ search, status, sort })
   })
   const domainsQuery = useQuery({ queryKey: ['domains'], queryFn: fetchDomains })
+  const fallbackDomain = import.meta.env.VITE_DEFAULT_DOMAIN ?? 'url.p42.fr'
+  const publicBaseUrl = import.meta.env.VITE_PUBLIC_BASE_URL
+
+  const buildShortUrl = (link: Link) => {
+    const baseCandidate = link.domain?.domain || publicBaseUrl || fallbackDomain
+    if (!baseCandidate) return link.slug
+    const withProtocol = baseCandidate.startsWith('http') ? baseCandidate : `https://${baseCandidate}`
+    const normalized = withProtocol.replace(/\/+$/, '')
+    return `${normalized}/${link.slug}`
+  }
+
+  const handleCopy = async (link: Link) => {
+    const shortUrl = buildShortUrl(link)
+    try {
+      await navigator.clipboard.writeText(shortUrl)
+      push({ title: t('deeplinks.copySuccess', 'Link copied'), description: shortUrl })
+    } catch (error) {
+      push({ title: t('deeplinks.copyError', 'Copy failed'), description: String(error) })
+    }
+  }
+
+  const domainOptions = useMemo(() => {
+    const provided = domainsQuery.data ?? []
+    if (!fallbackDomain) return provided
+    const map = new Map<string, { id: string; domain: string; status?: string }>()
+    provided.forEach(option => map.set(option.domain, option))
+    if (!map.has(fallbackDomain)) {
+      map.set(fallbackDomain, { id: 'default-domain', domain: fallbackDomain, status: 'verified' })
+    }
+    return Array.from(map.values())
+  }, [domainsQuery.data, fallbackDomain])
+
+  const defaultDomain = domainOptions[0]?.domain ?? ''
 
   useEffect(() => {
-    if (!form.domain && domainsQuery.data?.length) {
-      setForm(prev => ({ ...prev, domain: domainsQuery.data[0].domain }))
+    if (!form.domain && defaultDomain) {
+      setForm(prev => ({ ...prev, domain: defaultDomain }))
     }
-  }, [domainsQuery.data])
+  }, [defaultDomain, form.domain])
 
   const createMutation = useMutation({
     mutationFn: createLinkRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['links'] })
       setShowForm(false)
-      setForm({ originalUrl: '', slug: '', domain: domainsQuery.data?.[0]?.domain ?? '' })
+      setForm({ originalUrl: '', slug: '', domain: defaultDomain ?? '' })
       push({ title: 'Link created', description: 'Your short link is live' })
+    },
+    onError: error => {
+      push({ title: 'Erreur lors de la création', description: getApiErrorMessage(error) })
     }
   })
 
@@ -50,6 +88,9 @@ export const DeeplinksPage = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['links'] })
       push({ title: 'Link archived' })
+    },
+    onError: error => {
+      push({ title: 'Impossible d\'archiver', description: getApiErrorMessage(error) })
     }
   })
 
@@ -58,6 +99,9 @@ export const DeeplinksPage = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['links'] })
       push({ title: 'Link restored' })
+    },
+    onError: error => {
+      push({ title: 'Impossible de restaurer', description: getApiErrorMessage(error) })
     }
   })
 
@@ -66,6 +110,9 @@ export const DeeplinksPage = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['links'] })
       push({ title: 'Link deleted' })
+    },
+    onError: error => {
+      push({ title: 'Suppression impossible', description: getApiErrorMessage(error) })
     }
   })
 
@@ -152,7 +199,7 @@ export const DeeplinksPage = () => {
               onChange={event => setForm(prev => ({ ...prev, domain: event.target.value }))}
               className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100"
             >
-              {domainsQuery.data?.map(domain => (
+              {domainOptions.map(domain => (
                 <option key={domain.id} value={domain.domain}>
                   {domain.domain}
                 </option>
@@ -197,7 +244,7 @@ export const DeeplinksPage = () => {
                       Stats
                     </button>
                     <button
-                      onClick={() => navigator.clipboard.writeText(`${import.meta.env.VITE_PUBLIC_BASE_URL ?? ''}/${link.slug}`)}
+                      onClick={() => handleCopy(link)}
                       className="rounded border border-slate-700 px-2 py-1 text-slate-200 hover:border-accent"
                     >
                       Copy

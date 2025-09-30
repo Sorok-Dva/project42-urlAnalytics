@@ -1,21 +1,23 @@
-import { Op, type Order } from 'sequelize'
+import { Op, type Order, UniqueConstraintError } from 'sequelize'
 import { nanoid } from 'nanoid'
 import { z } from 'zod'
 import { Link } from '../models/link'
 import { env } from '../config/env'
 import { Domain } from '../models/domain'
 import { LinkEvent } from '../models/linkEvent'
+import type { LinkEventAttributes } from '../models/linkEvent'
 import { sequelize } from '../config/database'
 import { cacheLinkResolution, getCachedLink, invalidateLink, isDuplicateEvent, registerEventFingerprint } from '../lib/cache'
 import { resolveGeo, hashIp } from '../lib/geo'
 import { parseUserAgent, isBotUserAgent } from '../lib/userAgent'
 import { dispatchWebhooks } from '../lib/webhooks'
 import { ensureWorkspaceLimit } from './workspaceService'
-import { analyticsEmitter } from '../lib/events'
+import { publishAnalyticsEvent } from '../lib/eventBus'
 import { AggregationInterval, ApiLinkSchema } from '@p42/shared'
 import { buildEventsFlow, buildTimeSeries, fetchEventsForInterval, summarizeByDimension } from '../lib/analytics'
 
 const linkCreationSchema = ApiLinkSchema.extend({
+  domain: z.string().min(1).default(env.defaultDomain),
   slug: z.string().min(3).optional(),
   workspaceId: z.string().uuid(),
   createdById: z.string().uuid()
@@ -35,7 +37,8 @@ export const getLinkByToken = async (token: string) => {
 export const createLink = async (payload: z.infer<typeof linkCreationSchema>) => {
   const data = linkCreationSchema.parse(payload)
   const slug = data.slug || nanoid(8)
-  const domain = await resolveDomainOrThrow(data.workspaceId, data.domain)
+  const normalizedDomain = data.domain.trim().toLowerCase()
+  const domain = await resolveDomainOrThrow(data.workspaceId, normalizedDomain)
 
   await ensureWorkspaceLimit(data.workspaceId, 'links')
   return sequelize.transaction(async transaction => {
@@ -174,14 +177,39 @@ export const listLinks = async (
 }
 
 const resolveDomainOrThrow = async (workspaceId: string, domainName: string) => {
+  const normalizedDomain = domainName.trim().toLowerCase()
+  const defaultDomain = env.defaultDomain.trim().toLowerCase()
+
   const domain = await Domain.findOne({
     where: {
-      workspaceId,
-      domain: domainName
+      domain: normalizedDomain,
+      [Op.or]: [{ workspaceId }, { workspaceId: null }]
     }
   })
 
-  if (!domain) throw new Error('Domain not found')
+  if (!domain) {
+    if (normalizedDomain === defaultDomain) {
+      try {
+        const defaultDomain = await Domain.create({
+          workspaceId: null,
+          projectId: null,
+          domain: normalizedDomain,
+          status: 'verified',
+          verificationToken: `default-${nanoid(10)}`,
+          verifiedAt: new Date()
+        })
+        return defaultDomain
+      } catch (error) {
+        if (error instanceof UniqueConstraintError) {
+          const existing = await Domain.findOne({ where: { domain: normalizedDomain } })
+          if (existing) return existing
+        }
+        throw error
+      }
+    }
+    throw new Error('Domain not found')
+  }
+
   if (domain.status !== 'verified') throw new Error('Domain not verified')
   return domain
 }
@@ -228,12 +256,19 @@ const handleExpirationRedirect = (link: Link) => {
 }
 
 export const resolveLinkForRedirect = async (domain: string, slug: string) => {
-  const cacheKey = buildCacheKey(domain, slug)
+  const defaultDomain = env.defaultDomain.trim().toLowerCase()
+  const normalizedDomain = (domain ?? '').trim().toLowerCase() || defaultDomain
+
+  let domainRecord = await Domain.findOne({ where: { domain: normalizedDomain } })
+  if (!domainRecord && normalizedDomain !== defaultDomain) {
+    domainRecord = await Domain.findOne({ where: { domain: defaultDomain } })
+  }
+  if (!domainRecord) return null
+
+  const cacheKey = buildCacheKey(domainRecord.domain, slug)
   const cached = getCachedLink(cacheKey)
   if (cached) return Link.build(cached, { isNewRecord: false })
 
-  const domainRecord = await Domain.findOne({ where: { domain } })
-  if (!domainRecord) return null
   const link = await Link.findOne({
     where: {
       domainId: domainRecord.id,
@@ -255,14 +290,16 @@ export const recordLinkEvent = async (params: {
   eventType: 'click' | 'scan'
   locale?: string
   doNotTrack?: boolean
+  query?: Record<string, unknown>
 }) => {
-  const { link, ip, userAgent, referer, eventType, locale, doNotTrack } = params
+  const { link, ip, userAgent, referer, eventType, locale, doNotTrack, query } = params
   const { device, os, browser } = parseUserAgent(userAgent)
   const isBot = isBotUserAgent(userAgent)
   const geo = await resolveGeo(ip ?? '')
   const geoRedirect = evaluateGeoRules(link, geo.country, geo.continent)
   const ipHash = hashIp(ip)
-  const fingerprint = `${link.id}:${ipHash ?? 'unknown'}:${eventType}:${browser}:${new Date().getMinutes()}`
+  const fingerprint = ipHash ? `${link.id}:${ipHash}:${eventType}:${browser}:${new Date().getMinutes()}` : null
+  const utm = extractUtmFromQuery(query) ?? (link.utm ?? null)
 
   const targetUrl = (() => {
     if (hasExpired(link)) return handleExpirationRedirect(link)
@@ -271,7 +308,7 @@ export const recordLinkEvent = async (params: {
   })()
 
   if (doNotTrack || isBot || (fingerprint && isDuplicateEvent(fingerprint))) {
-    if (!isDuplicateEvent(fingerprint) && fingerprint) registerEventFingerprint(fingerprint)
+    if (fingerprint && !isDuplicateEvent(fingerprint)) registerEventFingerprint(fingerprint)
     return { targetUrl, event: null }
   }
 
@@ -294,17 +331,29 @@ export const recordLinkEvent = async (params: {
     ipHash,
     userAgent: userAgent ?? null,
     occurredAt: new Date(),
-    utm: link.utm
+    metadata: {
+      redirectTo: targetUrl,
+      domain: params.domain
+    },
+    utm
   })
 
   if (fingerprint) registerEventFingerprint(fingerprint)
 
-  analyticsEmitter.emit('link-event', {
+  const serializedEvent = event.toJSON() as LinkEventAttributes
+
+  await publishAnalyticsEvent({
     linkId: link.id,
     projectId: link.projectId,
     workspaceId: link.workspaceId,
     eventType,
-    event
+    event: {
+      ...serializedEvent,
+      occurredAt:
+        serializedEvent.occurredAt instanceof Date
+          ? serializedEvent.occurredAt.toISOString()
+          : serializedEvent.occurredAt
+    }
   })
   await link.increment('clickCount')
   await dispatchWebhooks(link.workspaceId, eventType === 'scan' ? 'scan.recorded' : 'click.recorded', {
@@ -317,6 +366,28 @@ export const recordLinkEvent = async (params: {
     targetUrl,
     event
   }
+}
+
+const extractUtmFromQuery = (query?: Record<string, unknown>) => {
+  if (!query) return null
+
+  const pick = (key: string) => {
+    const value = query[key]
+    if (Array.isArray(value)) return value[0] ? String(value[0]) : null
+    if (typeof value === 'string') return value || null
+    return value != null ? String(value) : null
+  }
+
+  const utm = {
+    source: pick('utm_source'),
+    medium: pick('utm_medium'),
+    campaign: pick('utm_campaign'),
+    content: pick('utm_content'),
+    term: pick('utm_term')
+  }
+
+  const hasValue = Object.values(utm).some(value => value && value.length > 0)
+  return hasValue ? utm : null
 }
 
 export const getLinkAnalytics = async (params: {

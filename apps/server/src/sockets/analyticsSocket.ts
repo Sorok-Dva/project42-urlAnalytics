@@ -1,5 +1,5 @@
 import { Server } from 'socket.io'
-import { analyticsEmitter } from '../lib/events'
+import { subscribeAnalyticsEvents } from '../lib/eventBus'
 
 export const registerAnalyticsSocket = (io: Server) => {
   io.on('connection', socket => {
@@ -9,7 +9,7 @@ export const registerAnalyticsSocket = (io: Server) => {
     socket.on('disconnect', () => {})
   })
 
-  analyticsEmitter.on('link-event', event => {
+  subscribeAnalyticsEvents(event => {
     io.to(`workspace:${event.workspaceId}`).emit('analytics:event', event)
     if (event.linkId) io.to(`link:${event.linkId}`).emit('analytics:event', event)
     if (event.projectId) io.to(`project:${event.projectId}`).emit('analytics:event', event)

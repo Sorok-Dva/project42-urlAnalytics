@@ -29,8 +29,8 @@ export const DashboardLayout = () => {
   return (
     <div className="relative flex min-h-screen bg-gradient-to-br from-[#0b1120] via-[#0f172a] to-[#1e1b4b] text-slate-100">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(127,90,240,0.22),_transparent_45%),radial-gradient(circle_at_bottom,_rgba(44,182,125,0.15),_transparent_40%)]" />
-      <aside className="relative z-10 flex w-72 flex-col border-r border-white/5 bg-white/5/ backdrop-blur-xl">
-        <div className="px-6 pb-6 pt-8">
+      <aside className="relative z-10 flex h-screen w-72 flex-col overflow-hidden border-r border-white/5 bg-white/5 backdrop-blur-xl">
+        <div className="flex-shrink-0 px-6 pb-6 pt-8">
           <div className="flex items-center gap-3">
             <div className="rounded-full bg-accent/20 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-accent">P42</div>
             <span className="text-sm text-slate-400">MIR-ALPHA</span>
@@ -48,7 +48,7 @@ export const DashboardLayout = () => {
             </div>
           )}
         </div>
-        <nav className="flex flex-1 flex-col gap-1 px-4">
+        <nav className="flex-1 space-y-1 overflow-y-auto px-4 pb-6">
           {navItems.map(item => (
             <NavLink
               key={item.to}
@@ -67,7 +67,7 @@ export const DashboardLayout = () => {
             </NavLink>
           ))}
         </nav>
-        <div className="mt-auto space-y-3 px-4 pb-8">
+        <div className="flex-shrink-0 space-y-3 px-4 pb-8 pt-4">
           <button
             onClick={toggle}
             className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/10"
