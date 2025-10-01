@@ -9,7 +9,7 @@ export const fetchEventsAnalytics = async (params: {
   pageSize?: number
   filters?: string
 }) => {
-  const response = await apiClient.get('/api/events', {
+  const response = await apiClient.get('/events', {
     params: {
       period: params.period,
       projectId: params.projectId ?? undefined,

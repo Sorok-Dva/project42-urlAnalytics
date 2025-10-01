@@ -4,6 +4,7 @@ export default defineConfig({
     plugins: [react()],
     server: {
         port: 5173,
-        open: false
+        open: false,
+        allowedHosts: ['p-42.fr', 'url-p42.fr', 'url.p42.fr']
     }
 });
