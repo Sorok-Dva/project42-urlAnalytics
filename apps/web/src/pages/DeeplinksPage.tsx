@@ -30,7 +30,7 @@ export const DeeplinksPage = () => {
     queryFn: () => fetchLinks({ search, status, sort })
   })
   const domainsQuery = useQuery({ queryKey: ['domains'], queryFn: fetchDomains })
-  const fallbackDomain = import.meta.env.VITE_DEFAULT_DOMAIN ?? 'url.p42.fr'
+  const fallbackDomain = import.meta.env.VITE_DEFAULT_DOMAIN ?? 'url.p-42.fr'
   const publicBaseUrl = import.meta.env.VITE_PUBLIC_BASE_URL
 
   const buildShortUrl = (link: Link) => {

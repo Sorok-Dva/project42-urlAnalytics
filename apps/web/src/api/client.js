@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { ApiError, getApiErrorMessage } from '../lib/apiError';
 export const apiClient = axios.create({
-    baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:4000',
+    baseURL: import.meta.env.VITE_API_URL ?? '/api',
     withCredentials: false
 });
 apiClient.interceptors.response.use(response => response, error => {

@@ -3,7 +3,7 @@ import type { Feature, FeatureCollection } from 'geojson'
 import type { Topology } from 'topojson-specification'
 import { feature } from 'topojson-client'
 import { MapContainer, TileLayer, GeoJSON, Circle, Tooltip, useMapEvents } from 'react-leaflet'
-import type { Layer } from 'leaflet'
+import type { Layer, StyleFunction } from 'leaflet'
 import type { AnalyticsGeoCity, AnalyticsGeoCountry } from '../types'
 import 'leaflet/dist/leaflet.css'
 import countriesTopology from 'world-atlas/countries-110m.json'
@@ -32,7 +32,14 @@ const ZoomWatcher = ({ onChange }: { onChange: (zoom: number) => void }) => {
   return null
 }
 
-const resolveFeatureKey = (feature: Feature) => {
+const resolveFeatureKey = (feature?: Feature) => {
+  if (!feature) {
+    return {
+      iso3: undefined,
+      iso2: undefined,
+      name: undefined
+    }
+  }
   const properties = (feature.properties ?? {}) as Record<string, unknown>
   const iso3 = (properties.iso_a3 ?? properties.ISO_A3 ?? properties.ADM0_A3) as string | undefined
   const iso2 = (properties.iso_a2 ?? properties.ISO_A2 ?? properties.ADM0_A2) as string | undefined
@@ -56,10 +63,29 @@ export const GeoAnalyticsMap = ({ countries, cities, totalEvents }: GeoAnalytics
     return map
   }, [countries])
 
-  const style = useCallback(
-    (feature: Feature) => {
+  const getCountryForFeature = useCallback(
+    (feature?: Feature) => {
       const { iso3, iso2, name } = resolveFeatureKey(feature)
-      const country = (iso3 && countryMetrics.get(iso3)) || (iso2 && countryMetrics.get(iso2)) || (name && countryMetrics.get(name))
+      if (iso3) {
+        const match = countryMetrics.get(iso3)
+        if (match) return match
+      }
+      if (iso2) {
+        const match = countryMetrics.get(iso2)
+        if (match) return match
+      }
+      if (name) {
+        const match = countryMetrics.get(name)
+        if (match) return match
+      }
+      return undefined
+    },
+    [countryMetrics]
+  )
+
+  const style = useCallback<StyleFunction>(
+    feature => {
+      const country = getCountryForFeature(feature)
       const percentage = country?.percentage ?? 0
       return {
         weight: 0.5,
@@ -68,13 +94,12 @@ export const GeoAnalyticsMap = ({ countries, cities, totalEvents }: GeoAnalytics
         fillColor: country ? heatColor(percentage) : '#1e293b'
       }
     },
-    [countryMetrics]
+    [getCountryForFeature]
   )
 
   const onEachCountry = useCallback(
     (feature: Feature, layer: Layer) => {
-      const { iso3, iso2, name } = resolveFeatureKey(feature)
-      const country = (iso3 && countryMetrics.get(iso3)) || (iso2 && countryMetrics.get(iso2)) || (name && countryMetrics.get(name))
+      const country = getCountryForFeature(feature)
       if (country) {
         layer.bindTooltip(
           `${country.label} – ${country.total.toLocaleString('fr-FR')} (${country.percentage.toFixed(1)}%)`,
@@ -82,7 +107,7 @@ export const GeoAnalyticsMap = ({ countries, cities, totalEvents }: GeoAnalytics
         )
       }
     },
-    [countryMetrics]
+    [getCountryForFeature]
   )
 
   const maxCityTotal = useMemo(() => Math.max(...cities.map(city => city.total), 1), [cities])

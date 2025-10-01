@@ -1,5 +1,21 @@
 import { useMemo, useState } from 'react'
+import type { Dispatch, SetStateAction } from 'react'
 import type { AnalyticsFilterGroup, AnalyticsFilters } from '../types'
+
+interface AnalyticsFiltersPanelController {
+  quickRanges: { from: string; to: string }
+  setQuickRanges: Dispatch<SetStateAction<{ from: string; to: string }>>
+  trafficSegment: 'all' | 'bot' | 'human'
+  setTrafficSegment: (segment: 'all' | 'bot' | 'human') => void
+  quickSelections: Partial<Record<string, string[]>>
+  onQuickChange: (id: string, values: string[]) => void
+  hideLocalReferrers: boolean
+  toggleHideLocalReferrers: () => void
+  resetAll: () => void
+  loading: boolean
+  advancedOpen: boolean
+  setAdvancedOpen: Dispatch<SetStateAction<boolean>>
+}
 
 interface AnalyticsFiltersPanelProps {
   groups: AnalyticsFilterGroup[]
@@ -7,6 +23,7 @@ interface AnalyticsFiltersPanelProps {
   onToggle: (groupId: keyof AnalyticsFilters, value: string) => void
   onClearGroup: (groupId: keyof AnalyticsFilters) => void
   onClearAll: () => void
+  controller?: AnalyticsFiltersPanelController
 }
 
 const isSelected = (active: AnalyticsFilters, groupId: keyof AnalyticsFilters, value: string) => {
