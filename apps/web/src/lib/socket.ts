@@ -1,6 +1,7 @@
 import { io } from 'socket.io-client'
+import { API_BASE_URL } from '../api/client'
 
-const socket = io(import.meta.env.VITE_API_URL ?? '/api', {
+const socket = io(API_BASE_URL, {
   transports: ['websocket'],
   autoConnect: false
 })

@@ -20,6 +20,13 @@ const ZoomWatcher = ({ onChange }) => {
     return null;
 };
 const resolveFeatureKey = (feature) => {
+    if (!feature) {
+        return {
+            iso3: undefined,
+            iso2: undefined,
+            name: undefined
+        };
+    }
     const properties = (feature.properties ?? {});
     const iso3 = (properties.iso_a3 ?? properties.ISO_A3 ?? properties.ADM0_A3);
     const iso2 = (properties.iso_a2 ?? properties.ISO_A2 ?? properties.ADM0_A2);
@@ -41,9 +48,27 @@ export const GeoAnalyticsMap = ({ countries, cities, totalEvents }) => {
         });
         return map;
     }, [countries]);
-    const style = useCallback((feature) => {
+    const getCountryForFeature = useCallback((feature) => {
         const { iso3, iso2, name } = resolveFeatureKey(feature);
-        const country = (iso3 && countryMetrics.get(iso3)) || (iso2 && countryMetrics.get(iso2)) || (name && countryMetrics.get(name));
+        if (iso3) {
+            const match = countryMetrics.get(iso3);
+            if (match)
+                return match;
+        }
+        if (iso2) {
+            const match = countryMetrics.get(iso2);
+            if (match)
+                return match;
+        }
+        if (name) {
+            const match = countryMetrics.get(name);
+            if (match)
+                return match;
+        }
+        return undefined;
+    }, [countryMetrics]);
+    const style = useCallback(feature => {
+        const country = getCountryForFeature(feature);
         const percentage = country?.percentage ?? 0;
         return {
             weight: 0.5,
@@ -51,14 +76,13 @@ export const GeoAnalyticsMap = ({ countries, cities, totalEvents }) => {
             fillOpacity: country ? 0.75 : 0.25,
             fillColor: country ? heatColor(percentage) : '#1e293b'
         };
-    }, [countryMetrics]);
+    }, [getCountryForFeature]);
     const onEachCountry = useCallback((feature, layer) => {
-        const { iso3, iso2, name } = resolveFeatureKey(feature);
-        const country = (iso3 && countryMetrics.get(iso3)) || (iso2 && countryMetrics.get(iso2)) || (name && countryMetrics.get(name));
+        const country = getCountryForFeature(feature);
         if (country) {
             layer.bindTooltip(`${country.label} – ${country.total.toLocaleString('fr-FR')} (${country.percentage.toFixed(1)}%)`, { sticky: true });
         }
-    }, [countryMetrics]);
+    }, [getCountryForFeature]);
     const maxCityTotal = useMemo(() => Math.max(...cities.map(city => city.total), 1), [cities]);
     const radiusForCity = (cityTotal, cityPercentage) => {
         const share = Math.max(cityPercentage / 100, cityTotal / maxCityTotal);

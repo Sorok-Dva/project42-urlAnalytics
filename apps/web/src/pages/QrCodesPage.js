@@ -22,7 +22,7 @@ export const QrCodesPage = () => {
     const qrQuery = useQuery({ queryKey: ['qr', search], queryFn: () => fetchQrCodes({ search }) });
     const linkQuery = useQuery({ queryKey: ['links'], queryFn: () => fetchLinks({ status: 'active' }) });
     const domainsQuery = useQuery({ queryKey: ['domains'], queryFn: fetchDomains });
-    const fallbackDomain = import.meta.env.VITE_DEFAULT_DOMAIN ?? 'url.p42.fr';
+    const fallbackDomain = import.meta.env.VITE_DEFAULT_DOMAIN ?? 'url.p-42.fr';
     const domainOptions = useMemo(() => {
         const provided = domainsQuery.data ?? [];
         if (!fallbackDomain)
