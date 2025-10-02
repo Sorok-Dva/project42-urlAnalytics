@@ -6,6 +6,9 @@ export const registerAnalyticsSocket = (io: Server) => {
     socket.on('join', (rooms: string[]) => {
       rooms.forEach(room => socket.join(room))
     })
+    socket.on('leave', (rooms: string[]) => {
+      rooms.forEach(room => socket.leave(room))
+    })
     socket.on('disconnect', () => {})
   })
 

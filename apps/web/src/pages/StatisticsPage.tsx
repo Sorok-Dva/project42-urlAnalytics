@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { BarChart3 } from 'lucide-react'
+import { BarChart3, RefreshCcw, ChevronDown } from 'lucide-react'
 import { useAuth } from '../stores/auth'
 import type { AggregationInterval } from '@p42/shared'
 import type { AnalyticsAggregation, AnalyticsFilters } from '../types'
@@ -10,13 +10,13 @@ import { fetchLinks, fetchLinkDetails, toggleLinkPublicStats, exportLinkStats } 
 import { fetchProjects } from '../api/projects'
 import { fetchEventsAnalytics } from '../api/events'
 import { LineChart } from '../components/LineChart'
-import { IntervalSelector } from '../components/IntervalSelector'
 import { DataTable } from '../components/DataTable'
 import { useRealtimeAnalytics } from '../hooks/useRealtimeAnalytics'
 import dayjs from '../lib/dayjs'
 import { MetricCard } from '../components/MetricCard'
 import { BreakdownCard } from '../components/BreakdownCard'
-import { AnalyticsFiltersPanel } from '../components/AnalyticsFiltersPanel'
+import { FilterSelect } from '../components/FilterSelect'
+import { FilterAccordionSection } from '../components/FilterAccordionSection'
 import { GeoAnalyticsMap } from '../components/GeoAnalyticsMap'
 import { ResponsiveContainer, BarChart, Bar, XAxis, Tooltip, LabelList, PieChart as RechartsPieChart, Pie, Cell, Legend, CartesianGrid, YAxis } from 'recharts'
 import type { AnalyticsFilterGroup } from '../types'
@@ -90,7 +90,20 @@ const serializeFilters = (filters: AnalyticsFilters) => {
 
 const percentageFormatter = (value: number) => `${value.toFixed(1)}%`
 
-const QUICK_FILTER_IDS: Array<keyof AnalyticsFilters> = ['referer', 'country', 'device', 'browser', 'os', 'language']
+const trafficSegments: Array<{ value: 'all' | 'bot' | 'human'; label: string }> = [
+  { value: 'all', label: 'Tout' },
+  { value: 'human', label: 'Humain' },
+  { value: 'bot', label: 'Bot' }
+]
+
+const intervalOptions: Array<{ value: AggregationInterval; label: string }> = [
+  { value: '1d', label: '24 h' },
+  { value: '1w', label: '7 jours' },
+  { value: '1m', label: '30 jours' },
+  { value: '3m', label: '90 jours' },
+  { value: '1y', label: '12 mois' },
+  { value: 'all', label: 'Tout' }
+]
 
 const HourlyChart = ({ data }: { data: AnalyticsAggregation['byHour'] }) => (
   <div className="h-64 w-full">
@@ -157,23 +170,11 @@ export const StatisticsPage = () => {
   const [selectedLink, setSelectedLink] = useState<string>('all')
   const [selectedProject, setSelectedProject] = useState<string>('all')
   const [filters, setFilters] = useState<AnalyticsFilters>({})
-  const [quickRanges, setQuickRanges] = useState<{ from: string; to: string }>({ from: '', to: '' })
   const [trafficSegment, setTrafficSegment] = useState<'all' | 'bot' | 'human'>('all')
   const [hideLocalReferrers, setHideLocalReferrers] = useState(false)
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false)
 
   const serializedFilters = useMemo(() => serializeFilters(filters), [filters])
-
-  const quickSelections = useMemo<Partial<Record<string, string[]>>>(() => {
-    const selections: Partial<Record<string, string[]>> = {}
-    QUICK_FILTER_IDS.forEach((key) => {
-      const values = filters[key]
-      if (Array.isArray(values) && values.length > 0) {
-        selections[key as string] = [...(values as string[])]
-      }
-    })
-    return selections
-  }, [filters])
 
   const linksQuery = useQuery({ queryKey: ['links'], queryFn: () => fetchLinks({ status: 'active' }), enabled: Boolean(token) })
   const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects, enabled: Boolean(token) })
@@ -253,7 +254,29 @@ export const StatisticsPage = () => {
     const total = dataset.reduce((acc, point) => acc + point.total, 0)
     return { data: dataset, total }
   }, [analytics?.timeSeries, selectedTimeSeries])
+  const timeGranularity = useMemo(() => {
+    if (['1m', '5m', '15m', '30m'].includes(selectedTimeSeries)) return 'minute'
+    if (['1h', '6h', '12h', 'hourly'].includes(selectedTimeSeries)) return 'hour'
+    if (selectedTimeSeries === 'daily') return 'day'
+    if (selectedTimeSeries === 'monthly') return 'month'
+    return 'minute'
+  }, [selectedTimeSeries])
   const filterGroups = useMemo<AnalyticsFilterGroup[]>(() => analytics?.availableFilters ?? [], [analytics?.availableFilters])
+
+  const filterGroupMap = useMemo(() => {
+    return new Map(filterGroups.map(group => [group.id, group]))
+  }, [filterGroups])
+
+  const getFilterOptions = useCallback(
+    (groupId: keyof AnalyticsFilters) => filterGroupMap.get(groupId)?.options ?? [],
+    [filterGroupMap]
+  )
+
+  const getFilterValues = useCallback(
+    (groupId: keyof AnalyticsFilters) =>
+      Array.isArray(filters[groupId]) ? (filters[groupId] as string[]) : [],
+    [filters]
+  )
 
   const appliedFilters = filters
 
@@ -281,19 +304,6 @@ export const StatisticsPage = () => {
     })
   }, [analytics?.availableFilters])
 
-  const handleQuickChange = useCallback((id: string, values: string[]) => {
-    const key = id as keyof AnalyticsFilters
-    setFilters(prev => {
-      const next = { ...prev }
-      if (values.length === 0) {
-        delete next[key]
-      } else {
-        next[key] = values as never
-      }
-      return next
-    })
-  }, [])
-
   const handleTrafficSegmentChange = useCallback((segment: 'all' | 'bot' | 'human') => {
     setTrafficSegment(segment)
     setFilters(prev => {
@@ -312,42 +322,12 @@ export const StatisticsPage = () => {
   }, [])
 
   const handleResetAllFilters = useCallback(() => {
-    setQuickRanges({ from: '', to: '' })
+    setFilters({})
+    setInterval('1m')
     setTrafficSegment('all')
     setHideLocalReferrers(false)
     setAdvancedFiltersOpen(false)
   }, [])
-
-  const filterController = useMemo(
-    () => ({
-      quickRanges,
-      setQuickRanges,
-      trafficSegment,
-      setTrafficSegment: handleTrafficSegmentChange,
-      quickSelections,
-      onQuickChange: handleQuickChange,
-      hideLocalReferrers,
-      toggleHideLocalReferrers,
-      resetAll: handleResetAllFilters,
-      loading: analyticsQuery.isFetching,
-      advancedOpen: advancedFiltersOpen,
-      setAdvancedOpen: setAdvancedFiltersOpen
-    }),
-    [
-      quickRanges,
-      setQuickRanges,
-      trafficSegment,
-      handleTrafficSegmentChange,
-      quickSelections,
-      handleQuickChange,
-      hideLocalReferrers,
-      toggleHideLocalReferrers,
-      handleResetAllFilters,
-      analyticsQuery.isFetching,
-      advancedFiltersOpen,
-      setAdvancedFiltersOpen
-    ]
-  )
 
   const handleToggleFilter = useCallback((groupId: keyof AnalyticsFilters, value: string) => {
     setFilters(prev => {
@@ -367,11 +347,14 @@ export const StatisticsPage = () => {
     })
   }, [])
 
-  const handleClearGroup = useCallback((groupId: keyof AnalyticsFilters) => {
+  const handleSetFilterValues = useCallback((groupId: keyof AnalyticsFilters, values: string[]) => {
     setFilters(prev => {
-      if (!prev[groupId]) return prev
       const next: AnalyticsFilters = { ...prev }
-      delete next[groupId]
+      if (values.length === 0) {
+        delete next[groupId]
+      } else {
+        next[groupId] = values as never
+      }
       return next
     })
   }, [])
@@ -417,10 +400,6 @@ export const StatisticsPage = () => {
       return next
     })
   }, [hideLocalReferrers])
-
-  const handleClearAllFilters = useCallback(() => {
-    setFilters({})
-  }, [])
 
   const linkDetails = linkDetailsQuery.data
 
@@ -549,7 +528,22 @@ export const StatisticsPage = () => {
           <h2 className="text-2xl font-semibold">{t('statistics.title')}</h2>
           <p className="text-sm text-muted">{t('statistics.subtitle', 'Analyse complète des évènements')}</p>
         </div>
-        <IntervalSelector value={interval} onChange={setInterval} />
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-blue-500/40 bg-slate-900/60 p-1">
+          {timeSeriesOptions.map(option => (
+            <button
+              key={option.key}
+              type="button"
+              onClick={() => handleTimeSeriesSelect(option.key)}
+              className={`px-3 py-1 text-xs transition ${
+                selectedTimeSeries === option.key
+                  ? 'rounded-md bg-blue-500/40 text-white shadow-inner shadow-blue-500/20'
+                  : 'rounded-md text-blue-200 hover:text-white'
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
         <select
           value={selectedLink}
           onChange={event => setSelectedLink(event.target.value)}
@@ -593,14 +587,270 @@ export const StatisticsPage = () => {
         </div>
       </section>
 
-      <AnalyticsFiltersPanel
-        groups={filterGroups}
-        active={appliedFilters}
-        onToggle={handleToggleFilter}
-        onClearGroup={handleClearGroup}
-        onClearAll={handleClearAllFilters}
-        controller={filterController}
-      />
+      <div className="rounded-2xl border border-blue-500/30 bg-gradient-to-r from-black/60 to-blue-900/20 p-5 shadow-inner shadow-blue-500/10">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-white">Dashboard Analytics Super Admin</h1>
+            <p className="text-sm text-blue-200 mt-1">
+              Explorez les métriques clés : filtres dynamiques, graphiques détaillés et cartographie interactive.
+            </p>
+          </div>
+          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
+            <button
+              type="button"
+              onClick={handleResetAllFilters}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-blue-500/40 text-blue-200 transition hover:bg-blue-900/30 disabled:opacity-70"
+              disabled={analyticsQuery.isFetching}
+            >
+              <RefreshCcw className="h-4 w-4" />
+              Réinitialiser
+            </button>
+            <p className="text-xs text-blue-300/80">Les filtres se mettent à jour automatiquement.</p>
+          </div>
+        </div>
+
+        <div className="mt-6 space-y-6">
+          <section className="space-y-4">
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-blue-200">Filtres rapides</h2>
+              <p className="mt-1 text-xs text-blue-300/80">Ajustez rapidement les critères principaux avant d'affiner avec les options avancées.</p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="flex flex-col gap-2 text-sm text-blue-100">
+                <span className="font-medium uppercase tracking-wide text-xs text-blue-300">Période</span>
+                <div className="flex flex-wrap gap-2 rounded-lg border border-blue-500/40 bg-slate-900/60 p-1">
+                  {intervalOptions.map(option => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setInterval(option.value)}
+                      className={`flex-1 rounded-md px-3 py-1 text-xs transition ${
+                        interval === option.value
+                          ? 'bg-blue-500/40 text-white shadow-inner shadow-blue-500/20'
+                          : 'text-blue-200 hover:text-white'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 text-sm text-blue-100">
+                <span className="font-medium uppercase tracking-wide text-xs text-blue-300">Trafic</span>
+                <div className="flex items-center gap-1 rounded-lg border border-blue-500/40 bg-slate-900/60 p-1">
+                  {trafficSegments.map(option => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => handleTrafficSegmentChange(option.value)}
+                      className={`flex-1 rounded-md px-3 py-1 text-xs transition ${
+                        trafficSegment === option.value
+                          ? 'bg-blue-500/40 text-white shadow-inner shadow-blue-500/20'
+                          : 'text-blue-200 hover:text-white'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <FilterSelect
+                label="Pays"
+                options={getFilterOptions('country')}
+                value={getFilterValues('country')}
+                onChange={values => handleSetFilterValues('country', values)}
+                placeholder="Sélectionner des pays"
+              />
+              <FilterSelect
+                label="Villes"
+                options={getFilterOptions('city')}
+                value={getFilterValues('city')}
+                onChange={values => handleSetFilterValues('city', values)}
+                placeholder="Rechercher des villes"
+              />
+              <FilterSelect
+                label="Sources"
+                options={getFilterOptions('referer')}
+                value={getFilterValues('referer')}
+                onChange={values => handleSetFilterValues('referer', values)}
+                placeholder="Sélectionner des sources"
+              />
+              <FilterSelect
+                label="Appareils"
+                options={getFilterOptions('device')}
+                value={getFilterValues('device')}
+                onChange={values => handleSetFilterValues('device', values)}
+                placeholder="Types d'appareils"
+              />
+              <FilterSelect
+                label="Systèmes d'exploitation"
+                options={getFilterOptions('os')}
+                value={getFilterValues('os')}
+                onChange={values => handleSetFilterValues('os', values)}
+                placeholder="Sélectionner des OS"
+              />
+              <FilterSelect
+                label="Navigateurs"
+                options={getFilterOptions('browser')}
+                value={getFilterValues('browser')}
+                onChange={values => handleSetFilterValues('browser', values)}
+                placeholder="Sélectionner des navigateurs"
+              />
+              <FilterSelect
+                label="Langues"
+                options={getFilterOptions('language')}
+                value={getFilterValues('language')}
+                onChange={values => handleSetFilterValues('language', values)}
+                placeholder="Sélectionner des langues"
+              />
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-blue-500/30 bg-slate-900/50 p-3 text-blue-100">
+                <div className="flex flex-col">
+                  <span className="text-xs font-medium uppercase tracking-wide text-blue-300">Référers externes</span>
+                  <span className="text-[11px] text-blue-300/80">Masquer les referrers venant du site lui-même.</span>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={hideLocalReferrers}
+                  onClick={toggleHideLocalReferrers}
+                  className={`relative h-6 w-11 rounded-full border transition ${
+                    hideLocalReferrers ? 'border-blue-500/70 bg-blue-500/40' : 'border-blue-500/30 bg-slate-900/80'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-white transition-transform ${
+                      hideLocalReferrers ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-blue-500/30 bg-slate-900/40 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-blue-200">Filtres avancés</h2>
+                <p className="text-xs text-blue-300/80">Déployez les sections ci-dessous pour segmenter plus finement.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAdvancedFiltersOpen(prev => !prev)}
+                className="flex items-center gap-2 rounded-lg border border-blue-500/40 px-3 py-2 text-xs font-medium text-blue-200 transition hover:bg-blue-900/30"
+                aria-expanded={advancedFiltersOpen}
+              >
+                {advancedFiltersOpen ? 'Masquer les filtres avancés' : 'Afficher les filtres avancés'}
+                <ChevronDown className={`h-3 w-3 transition-transform ${advancedFiltersOpen ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
+            {advancedFiltersOpen && (
+              <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <FilterAccordionSection title="Évènements & trafic" contentClassName="space-y-4">
+                  <FilterSelect
+                    label="Type d'évènement"
+                    options={getFilterOptions('eventType')}
+                    value={getFilterValues('eventType')}
+                    onChange={values => handleSetFilterValues('eventType', values)}
+                    placeholder="Clicks, scans, ..."
+                  />
+                  <FilterSelect
+                    label="Trafic"
+                    options={getFilterOptions('isBot')}
+                    value={getFilterValues('isBot')}
+                    onChange={values => handleSetFilterValues('isBot', values)}
+                    placeholder="Bot ou humain"
+                  />
+                </FilterAccordionSection>
+                <FilterAccordionSection title="Localisation avancée" contentClassName="space-y-4">
+                  <FilterSelect
+                    label="Continents"
+                    options={getFilterOptions('continent')}
+                    value={getFilterValues('continent')}
+                    onChange={values => handleSetFilterValues('continent', values)}
+                    placeholder="Rechercher des continents"
+                  />
+                  <FilterSelect
+                    label="Pays"
+                    options={getFilterOptions('country')}
+                    value={getFilterValues('country')}
+                    onChange={values => handleSetFilterValues('country', values)}
+                    placeholder="Pays ciblés"
+                  />
+                </FilterAccordionSection>
+                <FilterAccordionSection title="Technologies" contentClassName="grid grid-cols-1 gap-4">
+                  <FilterSelect
+                    label="Appareils"
+                    options={getFilterOptions('device')}
+                    value={getFilterValues('device')}
+                    onChange={values => handleSetFilterValues('device', values)}
+                    placeholder="Type d'appareil"
+                  />
+                  <FilterSelect
+                    label="OS"
+                    options={getFilterOptions('os')}
+                    value={getFilterValues('os')}
+                    onChange={values => handleSetFilterValues('os', values)}
+                    placeholder="Systèmes"
+                  />
+                  <FilterSelect
+                    label="Navigateurs"
+                    options={getFilterOptions('browser')}
+                    value={getFilterValues('browser')}
+                    onChange={values => handleSetFilterValues('browser', values)}
+                    placeholder="Navigateurs"
+                  />
+                  <FilterSelect
+                    label="Langues"
+                    options={getFilterOptions('language')}
+                    value={getFilterValues('language')}
+                    onChange={values => handleSetFilterValues('language', values)}
+                    placeholder="Langues utilisateurs"
+                  />
+                </FilterAccordionSection>
+                <FilterAccordionSection title="Campagnes & UTM" contentClassName="grid grid-cols-1 gap-4">
+                  <FilterSelect
+                    label="UTM Source"
+                    options={getFilterOptions('utmSource')}
+                    value={getFilterValues('utmSource')}
+                    onChange={values => handleSetFilterValues('utmSource', values)}
+                    placeholder="utm_source"
+                  />
+                  <FilterSelect
+                    label="UTM Medium"
+                    options={getFilterOptions('utmMedium')}
+                    value={getFilterValues('utmMedium')}
+                    onChange={values => handleSetFilterValues('utmMedium', values)}
+                    placeholder="utm_medium"
+                  />
+                  <FilterSelect
+                    label="UTM Campaign"
+                    options={getFilterOptions('utmCampaign')}
+                    value={getFilterValues('utmCampaign')}
+                    onChange={values => handleSetFilterValues('utmCampaign', values)}
+                    placeholder="utm_campaign"
+                  />
+                  <FilterSelect
+                    label="UTM Content"
+                    options={getFilterOptions('utmContent')}
+                    value={getFilterValues('utmContent')}
+                    onChange={values => handleSetFilterValues('utmContent', values)}
+                    placeholder="utm_content"
+                  />
+                  <FilterSelect
+                    label="UTM Term"
+                    options={getFilterOptions('utmTerm')}
+                    value={getFilterValues('utmTerm')}
+                    onChange={values => handleSetFilterValues('utmTerm', values)}
+                    placeholder="utm_term"
+                  />
+                </FilterAccordionSection>
+              </div>
+            )}
+          </section>
+        </div>
+      </div>
 
       {activeFilterChips.length > 0 && (
         <div className="flex flex-wrap gap-2 text-xs">
@@ -754,22 +1004,6 @@ export const StatisticsPage = () => {
             <BarChart3 className="h-4 w-4 text-blue-300" />
             {t('home.recentClicks')}
           </h3>
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-blue-500/40 bg-slate-900/60 p-1">
-            {timeSeriesOptions.map(option => (
-              <button
-                key={option.key}
-                type="button"
-                onClick={() => handleTimeSeriesSelect(option.key)}
-                className={`px-3 py-1 text-xs transition ${
-                  selectedTimeSeries === option.key
-                    ? 'rounded-md bg-blue-500/40 text-white'
-                    : 'rounded-md text-blue-200 hover:text-white'
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
         </div>
         <div className="mb-4 flex flex-wrap justify-end gap-2">
           <button
@@ -795,7 +1029,7 @@ export const StatisticsPage = () => {
             {t('statistics.exportJson')}
           </button>
         </div>
-        <LineChart data={filteredTimeSeries.data} total={filteredTimeSeries.total} />
+        <LineChart data={filteredTimeSeries.data} total={filteredTimeSeries.total} granularity={timeGranularity} />
       </section>
 
       {analytics.geo && (

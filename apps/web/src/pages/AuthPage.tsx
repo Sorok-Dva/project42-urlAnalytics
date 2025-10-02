@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../stores/auth'
-import { registerRequest } from '../api/auth'
+import { registerRequest, fetchAuthFeatures } from '../api/auth'
 import { Card } from '../components/Card'
 import { StatusBadge } from '../components/StatusBadge'
 import { getApiErrorMessage } from '../lib/apiError'
@@ -15,6 +15,7 @@ export const AuthPage = () => {
   const [form, setForm] = useState({ email: '', password: '', name: '' })
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [signupDisabled, setSignupDisabled] = useState(false)
 
   const isFormValid = (() => {
     const email = form.email.trim()
@@ -22,7 +23,10 @@ export const AuthPage = () => {
     const name = form.name.trim()
     if (!email || !password) return false
     if (!email.includes('@')) return false
-    if (mode === 'register' && !name) return false
+    if (mode === 'register') {
+      if (signupDisabled) return false
+      if (!name) return false
+    }
     return true
   })()
 
@@ -35,6 +39,11 @@ export const AuthPage = () => {
     const email = form.email.trim()
     const password = form.password.trim()
     const name = form.name.trim()
+
+    if (mode === 'register' && signupDisabled) {
+      setError('Les inscriptions sont désactivées sur cette instance.')
+      return
+    }
 
     if (!email || !password || (mode === 'register' && !name)) {
       setError('Veuillez renseigner les champs requis')
@@ -66,6 +75,27 @@ export const AuthPage = () => {
   useEffect(() => {
     if (token) navigate('/')
   }, [token, navigate])
+
+  useEffect(() => {
+    let active = true
+    const loadFeatures = async () => {
+      try {
+        const response = await fetchAuthFeatures()
+        if (!active) return
+        const disabled = Boolean(response?.features?.disableSignup)
+        setSignupDisabled(disabled)
+        if (disabled) {
+          setMode('login')
+        }
+      } catch (error) {
+        // swallow errors, features endpoint is optional
+      }
+    }
+    loadFeatures()
+    return () => {
+      active = false
+    }
+  }, [])
 
   return (
     <div className="relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-[#0b1120] via-[#1b1640] to-[#2d0f3a] px-6 py-12 text-slate-100">
@@ -106,9 +136,14 @@ export const AuthPage = () => {
               <p className="text-xs uppercase tracking-[0.4em] text-accent">P42 | MIR-ALPHA</p>
               <h2 className="mt-2 text-3xl font-semibold text-white">{mode === 'login' ? t('auth.signin') : t('auth.signup')}</h2>
               <p className="mt-2 text-sm text-slate-400">{t('auth.subtitle')}</p>
+              {signupDisabled && (
+                <div className="mt-3 inline-flex items-center gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-1 text-xs text-rose-200">
+                  Inscriptions fermées par l'administrateur.
+                </div>
+              )}
             </div>
 
-            {mode === 'register' && (
+            {mode === 'register' && !signupDisabled && (
               <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                 Nom complet
                 <input
@@ -160,17 +195,25 @@ export const AuthPage = () => {
             </button>
 
             <div className="flex items-center justify-between text-sm text-slate-400">
-              <span>{mode === 'login' ? "Besoin d'un compte ?" : 'Déjà inscrit ?'}</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setError(null)
-                  setMode(mode === 'login' ? 'register' : 'login')
-                }}
-                className="text-accent hover:underline"
-              >
-                {mode === 'login' ? t('auth.signup') : t('auth.signin')}
-              </button>
+              <span>
+                {signupDisabled
+                  ? 'Les inscriptions sont désactivées.'
+                  : mode === 'login'
+                    ? "Besoin d'un compte ?"
+                    : 'Déjà inscrit ?'}
+              </span>
+              {!signupDisabled && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError(null)
+                    setMode(mode === 'login' ? 'register' : 'login')
+                  }}
+                  className="text-accent hover:underline"
+                >
+                  {mode === 'login' ? t('auth.signup') : t('auth.signin')}
+                </button>
+              )}
             </div>
 
             <div className="space-y-2 pt-2">

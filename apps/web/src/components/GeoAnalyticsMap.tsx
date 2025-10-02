@@ -114,11 +114,11 @@ export const GeoAnalyticsMap = ({ countries, cities, totalEvents }: GeoAnalytics
 
   const radiusForCity = (cityTotal: number, cityPercentage: number) => {
     const share = Math.max(cityPercentage / 100, cityTotal / maxCityTotal)
-    const scaledShare = Math.sqrt(Math.max(0.05, share))
+    const scaledShare = Math.sqrt(Math.max(0.02, share))
     const baseRadius = 15000 * scaledShare
-    const zoomFactor = Math.pow(1.5, zoom - 2)
+    const zoomFactor = Math.pow(1.8, zoom - 2)
     const radius = baseRadius / zoomFactor
-    return Math.max(400, Math.min(15000, radius))
+    return Math.max(200, Math.min(15000, radius))
   }
 
   const legendGradient = useMemo(() => {
@@ -145,8 +145,8 @@ export const GeoAnalyticsMap = ({ countries, cities, totalEvents }: GeoAnalytics
               pathOptions={{
                 color: heatColor(city.percentage),
                 fillColor: heatColor(city.percentage),
-                fillOpacity: Math.min(0.85, 0.45 + city.percentage / 180),
-                weight: 0
+                fillOpacity: Math.min(0.9, 0.45 + city.percentage / 180),
+                weight: 1
               }}
             >
               <Tooltip direction="top" offset={[0, -2]} opacity={0.95} className="text-xs">

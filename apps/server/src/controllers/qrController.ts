@@ -77,3 +77,13 @@ export const update = asyncHandler(async (req: Request, res: Response) => {
 
   res.json({ qr })
 })
+
+export const remove = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.workspaceId || !req.currentUser) return res.status(401).json({ error: 'Unauthorized' })
+
+  const qr = await QrCode.findOne({ where: { id: req.params.id, workspaceId: req.workspaceId } })
+  if (!qr) return res.status(404).json({ error: 'QR code not found' })
+
+  await qr.destroy()
+  res.status(204).send()
+})

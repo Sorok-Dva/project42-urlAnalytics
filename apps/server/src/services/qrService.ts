@@ -94,11 +94,22 @@ export const createQrFromUrl = async (payload: {
   }
 }
 
+const normalizeHexColor = (value: unknown, fallback: string) => {
+  if (typeof value !== 'string') return fallback
+  const trimmed = value.trim()
+  if (!trimmed) return fallback
+  if (trimmed.toLowerCase() === 'transparent') return '#ffffff00'
+  if (/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(trimmed)) {
+    return trimmed
+  }
+  return fallback
+}
+
 export const generateQrSvg = async (content: string, design: Record<string, unknown>) => {
   const options = {
     color: {
-      dark: (design.foreground as string) ?? '#000000',
-      light: (design.background as string) ?? '#ffffff00'
+      dark: normalizeHexColor(design.foreground, '#000000'),
+      light: normalizeHexColor(design.background, '#ffffff00')
     },
     width: 512
   }

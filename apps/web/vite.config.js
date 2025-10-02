@@ -6,6 +6,6 @@ export default defineConfig({
         port: 5173,
         open: false,
         host: true,
-        allowedHosts: ['p-42.fr', 'url.p-42.fr', 'url-p-42.fr']
+        allowedHosts: ['p-42.fr', 'app.p-42.fr']
     }
 });

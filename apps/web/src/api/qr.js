@@ -21,3 +21,6 @@ export const updateQrCode = async (id, payload) => {
     const response = await apiClient.patch(`/qr/${id}`, payload);
     return response.data.qr;
 };
+export const deleteQrCode = async (id) => {
+    await apiClient.delete(`/qr/${id}`);
+};

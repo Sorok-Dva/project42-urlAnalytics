@@ -86,11 +86,11 @@ export const GeoAnalyticsMap = ({ countries, cities, totalEvents }) => {
     const maxCityTotal = useMemo(() => Math.max(...cities.map(city => city.total), 1), [cities]);
     const radiusForCity = (cityTotal, cityPercentage) => {
         const share = Math.max(cityPercentage / 100, cityTotal / maxCityTotal);
-        const scaledShare = Math.sqrt(Math.max(0.05, share));
+        const scaledShare = Math.sqrt(Math.max(0.02, share));
         const baseRadius = 15000 * scaledShare;
-        const zoomFactor = Math.pow(1.5, zoom - 2);
+        const zoomFactor = Math.pow(1.8, zoom - 2);
         const radius = baseRadius / zoomFactor;
-        return Math.max(400, Math.min(15000, radius));
+        return Math.max(200, Math.min(15000, radius));
     };
     const legendGradient = useMemo(() => {
         const stops = [0, 25, 50, 75, 100];
@@ -101,7 +101,7 @@ export const GeoAnalyticsMap = ({ countries, cities, totalEvents }) => {
                         .map(city => (_jsx(Circle, { center: [city.latitude, city.longitude], radius: radiusForCity(city.total, city.percentage), pathOptions: {
                             color: heatColor(city.percentage),
                             fillColor: heatColor(city.percentage),
-                            fillOpacity: Math.min(0.85, 0.45 + city.percentage / 180),
-                            weight: 0
+                            fillOpacity: Math.min(0.9, 0.45 + city.percentage / 180),
+                            weight: 1
                         }, children: _jsxs(Tooltip, { direction: "top", offset: [0, -2], opacity: 0.95, className: "text-xs", children: [_jsx("div", { className: "font-medium text-slate-100", children: city.label }), _jsxs("div", { className: "text-slate-200", children: [city.total.toLocaleString('fr-FR'), " hits (", city.percentage.toFixed(1), "%)"] }), city.country && _jsx("div", { className: "text-slate-400", children: city.country })] }) }, `${city.label}-${city.latitude}-${city.longitude}`)))] }), _jsx("div", { className: "border-t border-slate-800/70 px-6 py-3", children: _jsxs("div", { className: "flex flex-col gap-2", children: [_jsx("div", { className: "text-xs text-muted", children: "Intensit\u00E9 relative (% de hits)" }), _jsx("div", { className: "h-2 rounded-full", style: { background: `linear-gradient(90deg, ${legendGradient})` } }), _jsxs("div", { className: "flex justify-between text-[10px] uppercase tracking-wider text-slate-500", children: [_jsx("span", { children: "0%" }), _jsx("span", { children: "25%" }), _jsx("span", { children: "50%" }), _jsx("span", { children: "75%" }), _jsx("span", { children: "100%" })] })] }) }), _jsxs("div", { className: "border-t border-slate-800/70 px-6 py-3 text-xs text-muted", children: ["Total \u00E9v\u00E8nements consid\u00E9r\u00E9s : ", totalEvents.toLocaleString('fr-FR')] })] }));
 };

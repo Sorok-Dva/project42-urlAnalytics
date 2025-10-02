@@ -7,9 +7,33 @@ const numberFormatter = new Intl.NumberFormat('fr-FR')
 interface Props {
   data: AnalyticsPoint[]
   total?: number
+  granularity?: 'minute' | 'hour' | 'day' | 'month'
 }
 
-export const LineChart = ({ data, total }: Props) => {
+const formatTick = (value: string, granularity: NonNullable<Props['granularity']>) => {
+  const date = dayjs(value)
+  switch (granularity) {
+    case 'minute':
+      return date.format('HH:mm')
+    case 'hour':
+      return date.format('DD MMM HH[h]')
+    case 'day':
+      return date.format('DD MMM')
+    case 'month':
+      return date.format('MMM YYYY')
+    default:
+      return date.format('DD MMM')
+  }
+}
+
+const formatTooltipLabel = (value: string, granularity: NonNullable<Props['granularity']>) => {
+  const date = dayjs(value)
+  if (granularity === 'month') return date.format('MMMM YYYY')
+  if (granularity === 'day') return date.format('DD MMMM YYYY')
+  return date.format('DD MMM YYYY HH:mm')
+}
+
+export const LineChart = ({ data, total, granularity = 'minute' }: Props) => {
   const overall = total ?? data.reduce((sum, point) => sum + point.total, 0)
 
   return (
@@ -26,9 +50,9 @@ export const LineChart = ({ data, total }: Props) => {
             dataKey="timestamp"
             tickLine={false}
             axisLine={false}
-            tickFormatter={value => dayjs(value).format('DD MMM')}
+            tickFormatter={value => formatTick(String(value), granularity)}
             tick={{ fill: '#94a3b8', fontSize: 11 }}
-            minTickGap={24}
+            minTickGap={16}
           />
           <YAxis hide tick={{ fill: '#94a3b8' }} />
           <Tooltip
@@ -39,12 +63,22 @@ export const LineChart = ({ data, total }: Props) => {
               const percentage = overall === 0 ? 0 : (value / overall) * 100
               return [`${numberFormatter.format(value)} (${percentage.toFixed(1)}%)`, 'Hits']
             }}
-            labelFormatter={label => dayjs(label).format('DD MMM YYYY HH:mm')}
+            labelFormatter={label => formatTooltipLabel(String(label), granularity)}
           />
           <Area type="monotone" dataKey="total" stroke="#7f5af0" fill="url(#p42Gradient)" />
-          <Line type="monotone" dataKey="total" stroke="#7f5af0" strokeWidth={2} dot={false} />
+          <Line
+            type="monotone"
+            dataKey="total"
+            stroke="#7f5af0"
+            strokeWidth={2}
+            dot={{ r: 2, fill: '#7f5af0' }}
+            activeDot={{ r: 4, fill: '#38bdf8' }}
+            connectNulls
+          />
         </RechartsLineChart>
       </ResponsiveContainer>
     </div>
   )
 }
+
+export default LineChart

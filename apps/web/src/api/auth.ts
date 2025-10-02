@@ -20,3 +20,8 @@ export const fetchCurrentUser = async (token: string) => {
   const response = await apiClient.get('/auth/me')
   return response.data as { user: User; workspaceId: string }
 }
+
+export const fetchAuthFeatures = async () => {
+  const response = await apiClient.get('/auth/features')
+  return response.data as { features: { disableSignup: boolean } }
+}

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { fetchQrCodes, createQrCode } from '../api/qr'
+import { fetchQrCodes, createQrCode, deleteQrCode } from '../api/qr'
 import { useToast } from '../providers/ToastProvider'
 import { fetchLinks } from '../api/links'
 import { fetchDomains } from '../api/domains'
@@ -19,6 +19,7 @@ export const QrCodesPage = () => {
   const [search, setSearch] = useState('')
   const [tab, setTab] = useState<'url' | 'link'>('link')
   const [form, setForm] = useState({ name: '', originalUrl: '', linkId: '', domain: '' })
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const baseUrl = (import.meta.env.VITE_PUBLIC_BASE_URL as string | undefined) ?? window.location.origin
 
@@ -58,6 +59,23 @@ export const QrCodesPage = () => {
     }
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => deleteQrCode(id),
+    onMutate: async id => {
+      setDeletingId(id)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['qr'] })
+      push({ title: 'QR supprimé', description: 'Le QR code a été supprimé définitivement.' })
+    },
+    onError: error => {
+      push({ title: 'Suppression impossible', description: getApiErrorMessage(error) })
+    },
+    onSettled: () => {
+      setDeletingId(null)
+    }
+  })
+
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!form.name) return
@@ -82,6 +100,16 @@ export const QrCodesPage = () => {
       push({ title: t('deeplinks.copySuccess', 'Lien copié'), description: target })
     } catch (error) {
       push({ title: t('deeplinks.copyError', 'Erreur de copie'), description: String(error) })
+    }
+  }
+
+  const handleDelete = async (qr: QrCodeSummary) => {
+    const confirmed = window.confirm(`Supprimer le QR code "${qr.name}" ? Cette action est irréversible.`)
+    if (!confirmed) return
+    try {
+      await deleteMutation.mutateAsync(qr.id)
+    } catch (error) {
+      // handled via onError toast
     }
   }
 
@@ -215,6 +243,13 @@ export const QrCodesPage = () => {
                   className="rounded-md border border-accent px-3 py-2 text-xs text-accent hover:bg-accent/10"
                 >
                   Personnaliser
+                </button>
+                <button
+                  onClick={() => handleDelete(qr)}
+                  className="rounded-md border border-rose-500/50 px-3 py-2 text-xs text-rose-300 transition hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={deletingId === qr.id && deleteMutation.isPending}
+                >
+                  {deletingId === qr.id && deleteMutation.isPending ? 'Suppression…' : 'Supprimer'}
                 </button>
               </div>
             </div>

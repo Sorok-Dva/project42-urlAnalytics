@@ -2,8 +2,12 @@ import { Request, Response } from 'express'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { authenticateUser, issueToken, registerUser, getUserById } from '../services/authService'
 import { WorkspaceMember } from '../models/workspaceMember'
+import { env } from '../config/env'
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
+  if (env.feature.disableSignup) {
+    return res.status(403).json({ error: 'Sign-up is disabled for this instance.' })
+  }
   const { email, password, name } = req.body
   const { user, workspace } = await registerUser({ email, password, name })
   const token = issueToken(user, workspace.id)
@@ -26,4 +30,8 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 
 export const current = asyncHandler(async (req: Request, res: Response) => {
   res.json({ user: req.currentUser, workspaceId: req.workspaceId })
+})
+
+export const features = asyncHandler(async (_req: Request, res: Response) => {
+  res.json({ features: { disableSignup: env.feature.disableSignup } })
 })

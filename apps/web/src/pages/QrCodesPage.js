@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { fetchQrCodes, createQrCode } from '../api/qr';
+import { fetchQrCodes, createQrCode, deleteQrCode } from '../api/qr';
 import { useToast } from '../providers/ToastProvider';
 import { fetchLinks } from '../api/links';
 import { fetchDomains } from '../api/domains';
@@ -18,6 +18,7 @@ export const QrCodesPage = () => {
     const [search, setSearch] = useState('');
     const [tab, setTab] = useState('link');
     const [form, setForm] = useState({ name: '', originalUrl: '', linkId: '', domain: '' });
+    const [deletingId, setDeletingId] = useState(null);
     const baseUrl = import.meta.env.VITE_PUBLIC_BASE_URL ?? window.location.origin;
     const qrQuery = useQuery({ queryKey: ['qr', search], queryFn: () => fetchQrCodes({ search }) });
     const linkQuery = useQuery({ queryKey: ['links'], queryFn: () => fetchLinks({ status: 'active' }) });
@@ -51,6 +52,22 @@ export const QrCodesPage = () => {
             push({ title: 'Impossible de générer le QR', description: getApiErrorMessage(error) });
         }
     });
+    const deleteMutation = useMutation({
+        mutationFn: async (id) => deleteQrCode(id),
+        onMutate: async (id) => {
+            setDeletingId(id);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['qr'] });
+            push({ title: 'QR supprimé', description: 'Le QR code a été supprimé définitivement.' });
+        },
+        onError: error => {
+            push({ title: 'Suppression impossible', description: getApiErrorMessage(error) });
+        },
+        onSettled: () => {
+            setDeletingId(null);
+        }
+    });
     const handleCreate = async (event) => {
         event.preventDefault();
         if (!form.name)
@@ -80,10 +97,21 @@ export const QrCodesPage = () => {
             push({ title: t('deeplinks.copyError', 'Erreur de copie'), description: String(error) });
         }
     };
+    const handleDelete = async (qr) => {
+        const confirmed = window.confirm(`Supprimer le QR code "${qr.name}" ? Cette action est irréversible.`);
+        if (!confirmed)
+            return;
+        try {
+            await deleteMutation.mutateAsync(qr.id);
+        }
+        catch (error) {
+            // handled via onError toast
+        }
+    };
     return (_jsxs("div", { className: "space-y-6", children: [_jsxs("div", { className: "flex flex-wrap items-center gap-3", children: [_jsxs("div", { children: [_jsx("h2", { className: "text-2xl font-semibold", children: t('qr.title') }), _jsx("p", { className: "text-sm text-muted", children: "G\u00E9n\u00E9rez des QR codes personnalis\u00E9s en temps r\u00E9el" })] }), _jsx("div", { className: "ml-auto flex gap-2", children: _jsx("input", { value: search, onChange: event => setSearch(event.target.value), placeholder: "Rechercher", className: "rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100" }) })] }), _jsxs("form", { onSubmit: handleCreate, className: "rounded-2xl border border-slate-800/70 bg-slate-900/40 p-6", children: [_jsxs("div", { className: "flex items-center gap-3 text-sm", children: [_jsx("button", { type: "button", onClick: () => setTab('link'), className: `rounded-full px-4 py-1 ${tab === 'link' ? 'bg-accent text-white' : 'border border-slate-700 text-slate-200'}`, children: "Depuis un lien" }), _jsx("button", { type: "button", onClick: () => setTab('url'), className: `rounded-full px-4 py-1 ${tab === 'url' ? 'bg-accent text-white' : 'border border-slate-700 text-slate-200'}`, children: "Depuis une URL" })] }), _jsxs("div", { className: "mt-4 grid gap-4 md:grid-cols-3", children: [_jsxs("div", { children: [_jsx("label", { className: "text-xs text-muted", children: "Nom" }), _jsx("input", { value: form.name, onChange: event => setForm(prev => ({ ...prev, name: event.target.value })), className: "mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100" })] }), tab === 'url' ? (_jsxs(_Fragment, { children: [_jsxs("div", { className: "md:col-span-2", children: [_jsx("label", { className: "text-xs text-muted", children: "URL d'origine" }), _jsx("input", { value: form.originalUrl, onChange: event => setForm(prev => ({ ...prev, originalUrl: event.target.value })), className: "mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100" })] }), _jsxs("div", { children: [_jsx("label", { className: "text-xs text-muted", children: "Domaine" }), _jsx("select", { value: form.domain, onChange: event => setForm(prev => ({ ...prev, domain: event.target.value })), className: "mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100", children: domainOptions.map(domain => (_jsx("option", { value: domain.domain, children: domain.domain }, domain.id))) })] })] })) : (_jsxs("div", { className: "md:col-span-2", children: [_jsx("label", { className: "text-xs text-muted", children: "Lien" }), _jsxs("select", { value: form.linkId, onChange: event => setForm(prev => ({ ...prev, linkId: event.target.value })), className: "mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100", children: [_jsx("option", { value: "", children: "S\u00E9lectionner un lien" }), linkQuery.data?.map(link => (_jsx("option", { value: link.id, children: link.slug }, link.id)))] })] }))] }), _jsx("div", { className: "mt-4 flex justify-end", children: _jsx("button", { type: "submit", className: "rounded-md bg-accent px-4 py-2 text-sm font-medium text-white", disabled: createMutation.isPending, children: t('qr.create') }) })] }), _jsxs("div", { className: "grid gap-4 md:grid-cols-3", children: [qrQuery.data?.map(qr => {
                         const design = sanitizeDesign(qr.design);
                         const target = `${baseUrl.replace(/\/$/, '')}/qr/${qr.code}`;
-                        return (_jsxs("div", { className: "rounded-2xl border border-slate-800/70 bg-slate-900/40 p-5", children: [_jsxs("div", { className: "flex items-center justify-between", children: [_jsx("h3", { className: "text-lg font-semibold text-slate-100", children: qr.name }), _jsxs("span", { className: "text-xs text-muted", children: [qr.totalScans, " scans"] })] }), _jsx("div", { className: "mt-4 flex items-center justify-center rounded-lg border border-slate-800 bg-slate-950/60 p-4", children: _jsx(QrPreview, { data: target, design: design, size: 180 }) }), _jsxs("div", { className: "mt-4 flex flex-wrap gap-2", children: [_jsx("button", { onClick: () => handleDownload(qr, 'png'), className: "rounded-md border border-slate-700 px-3 py-2 text-xs text-slate-200 hover:border-accent", children: "T\u00E9l\u00E9charger PNG" }), _jsx("button", { onClick: () => handleDownload(qr, 'svg'), className: "rounded-md border border-slate-700 px-3 py-2 text-xs text-slate-200 hover:border-accent", children: "T\u00E9l\u00E9charger SVG" }), _jsx("button", { onClick: () => handleCopy(qr), className: "rounded-md border border-slate-700 px-3 py-2 text-xs text-slate-200 hover:border-accent", children: "Copier le lien" }), _jsx("button", { onClick: () => navigate(`/qr-codes/${qr.id}/design`), className: "rounded-md border border-accent px-3 py-2 text-xs text-accent hover:bg-accent/10", children: "Personnaliser" })] })] }, qr.id));
+                        return (_jsxs("div", { className: "rounded-2xl border border-slate-800/70 bg-slate-900/40 p-5", children: [_jsxs("div", { className: "flex items-center justify-between", children: [_jsx("h3", { className: "text-lg font-semibold text-slate-100", children: qr.name }), _jsxs("span", { className: "text-xs text-muted", children: [qr.totalScans, " scans"] })] }), _jsx("div", { className: "mt-4 flex items-center justify-center rounded-lg border border-slate-800 bg-slate-950/60 p-4", children: _jsx(QrPreview, { data: target, design: design, size: 180 }) }), _jsxs("div", { className: "mt-4 flex flex-wrap gap-2", children: [_jsx("button", { onClick: () => handleDownload(qr, 'png'), className: "rounded-md border border-slate-700 px-3 py-2 text-xs text-slate-200 hover:border-accent", children: "T\u00E9l\u00E9charger PNG" }), _jsx("button", { onClick: () => handleDownload(qr, 'svg'), className: "rounded-md border border-slate-700 px-3 py-2 text-xs text-slate-200 hover:border-accent", children: "T\u00E9l\u00E9charger SVG" }), _jsx("button", { onClick: () => handleCopy(qr), className: "rounded-md border border-slate-700 px-3 py-2 text-xs text-slate-200 hover:border-accent", children: "Copier le lien" }), _jsx("button", { onClick: () => navigate(`/qr-codes/${qr.id}/design`), className: "rounded-md border border-accent px-3 py-2 text-xs text-accent hover:bg-accent/10", children: "Personnaliser" }), _jsx("button", { onClick: () => handleDelete(qr), className: "rounded-md border border-rose-500/50 px-3 py-2 text-xs text-rose-300 transition hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-60", disabled: deletingId === qr.id && deleteMutation.isPending, children: deletingId === qr.id && deleteMutation.isPending ? 'Suppression…' : 'Supprimer' })] })] }, qr.id));
                     }), qrQuery.data?.length === 0 && (_jsx("div", { className: "rounded-2xl border border-slate-800/70 bg-slate-900/40 p-8 text-center text-sm text-muted", children: "Aucun QR code pour le moment" }))] })] }));
 };
 export default QrCodesPage;

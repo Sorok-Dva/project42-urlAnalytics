@@ -1,0 +1,3 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+export const FilterAccordionSection = ({ title, description, contentClassName, children }) => (_jsxs("div", { className: "space-y-3 rounded-xl border border-blue-500/20 bg-slate-900/60 p-4", children: [_jsxs("div", { children: [_jsx("h4", { className: "text-xs font-semibold uppercase tracking-wide text-blue-200", children: title }), description && _jsx("p", { className: "mt-1 text-[11px] text-blue-300/80", children: description })] }), _jsx("div", { className: contentClassName ?? 'space-y-3', children: children })] }));
+export default FilterAccordionSection;

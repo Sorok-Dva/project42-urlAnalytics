@@ -16,3 +16,7 @@ export const fetchCurrentUser = async (token) => {
     const response = await apiClient.get('/auth/me');
     return response.data;
 };
+export const fetchAuthFeatures = async () => {
+    const response = await apiClient.get('/auth/features');
+    return response.data;
+};
