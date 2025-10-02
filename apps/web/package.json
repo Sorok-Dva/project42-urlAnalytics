@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc && vite build && cp -r dist/* /var/www/deeplinksAnalytics",
     "preview": "vite preview",
     "test": "vitest",
     "lint": "eslint 'src/**/*.{ts,tsx}'",
@@ -21,7 +21,7 @@
     "dayjs": "^1.11.10",
     "i18next": "^23.10.1",
     "lucide-react": "^0.544.0",
-    "react-leaflet": "^5.0.0",
+    "react-leaflet": "^4.2.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hook-form": "^7.51.0",

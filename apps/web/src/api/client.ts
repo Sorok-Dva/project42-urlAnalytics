@@ -48,6 +48,9 @@ const resolveApiBaseParts = (rawBaseUrl: string | undefined): ApiBaseParts => {
 
 const API_BASE = resolveApiBaseParts(import.meta.env.VITE_API_URL)
 
+export const API_BASE_ORIGIN = API_BASE.origin
+export const API_BASE_PATH = API_BASE.path
+
 export const API_BASE_URL = API_BASE.origin
   ? `${API_BASE.origin}${API_BASE.path}`
   : API_BASE.path || DEFAULT_API_PATH

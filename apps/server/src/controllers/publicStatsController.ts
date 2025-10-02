@@ -4,7 +4,7 @@ import { getLinkAnalytics, getLinkByToken } from '../services/linkService'
 import type { AggregationInterval } from '@p42/shared'
 import { getProjectByToken, getProjectStatsSnapshot } from '../services/projectService'
 
-const allowedIntervals: AggregationInterval[] = ['all', '1y', '3m', '1m', '1w', '1d']
+const allowedIntervals: AggregationInterval[] = ['all', '1y', '3m', '1m', '1w', '1d', '12h', '6h', '1h', '30min', '15min', '5min', '1min']
 const parseInterval = (value: unknown): AggregationInterval => {
   if (typeof value === 'string' && allowedIntervals.includes(value as AggregationInterval)) {
     return value as AggregationInterval

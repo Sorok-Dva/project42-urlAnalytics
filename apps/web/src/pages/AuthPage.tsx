@@ -15,7 +15,9 @@ export const AuthPage = () => {
   const [form, setForm] = useState({ email: '', password: '', name: '' })
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [signupDisabled, setSignupDisabled] = useState(false)
+  const envSignupDisabled = String(import.meta.env.VITE_DISABLE_SIGNUP ?? '').toLowerCase() === 'true'
+  const [remoteSignupDisabled, setRemoteSignupDisabled] = useState(false)
+  const signupDisabled = envSignupDisabled || remoteSignupDisabled
 
   const isFormValid = (() => {
     const email = form.email.trim()
@@ -83,10 +85,7 @@ export const AuthPage = () => {
         const response = await fetchAuthFeatures()
         if (!active) return
         const disabled = Boolean(response?.features?.disableSignup)
-        setSignupDisabled(disabled)
-        if (disabled) {
-          setMode('login')
-        }
+        setRemoteSignupDisabled(disabled)
       } catch (error) {
         // swallow errors, features endpoint is optional
       }
@@ -96,6 +95,12 @@ export const AuthPage = () => {
       active = false
     }
   }, [])
+
+  useEffect(() => {
+    if (signupDisabled) {
+      setMode('login')
+    }
+  }, [signupDisabled])
 
   return (
     <div className="relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-[#0b1120] via-[#1b1640] to-[#2d0f3a] px-6 py-12 text-slate-100">
@@ -107,25 +112,25 @@ export const AuthPage = () => {
         <div className="hidden flex-col justify-between rounded-3xl border border-white/10 bg-white/5 p-10 shadow-lg backdrop-blur-xl lg:flex">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full bg-accent/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.4em] text-accent">
-              MIR-ALPHA
+              Deeplinks Insight par SorokDva
             </div>
-            <h1 className="mt-6 text-4xl font-semibold text-white">Metric Intelligence Radar</h1>
+            <h1 className="mt-6 text-4xl font-semibold text-white">La plateforme analytics pensée pour vos liens</h1>
             <p className="mt-4 text-sm leading-relaxed text-slate-300">
-              {t('auth.subtitle')} • Optimisez vos campagnes avec des analytics ultra rapides, un ciblage géographique avancé et des QR codes design synchronisés en temps réel.
+              Centralisez la gestion de vos liens courts, suivez chaque interaction en temps réel et activez des scénarios de redirection intelligents pour vos campagnes.
             </p>
           </div>
           <div className="mt-10 space-y-4 text-sm text-slate-300">
             <div className="flex items-center gap-3">
-              <StatusBadge label="Realtime" tone="success" />
-              <span>Socket.io push analytics</span>
+              <StatusBadge label="Temps réel" tone="success" />
+              <span>Tableau de bord rafraîchi à chaque clic</span>
             </div>
             <div className="flex items-center gap-3">
-              <StatusBadge label="Multi-workspace" tone="neutral" />
-              <span>Roles &amp; access control out of the box</span>
+              <StatusBadge label="Équipes" tone="neutral" />
+              <span>Espaces de travail et rôles pour toute l'organisation</span>
             </div>
             <div className="flex items-center gap-3">
-              <StatusBadge label="MIR-ALPHA" tone="warning" />
-              <span>Link intelligence tailored for scale</span>
+              <StatusBadge label="Automations" tone="warning" />
+              <span>Redirections géo, QR codes et webhooks prêts à l'emploi</span>
             </div>
           </div>
         </div>
@@ -133,9 +138,9 @@ export const AuthPage = () => {
         <Card padding={false}>
           <form onSubmit={handleSubmit} className="flex flex-col gap-6 p-10">
             <div>
-              <p className="text-xs uppercase tracking-[0.4em] text-accent">P42 | MIR-ALPHA</p>
+              <p className="text-xs uppercase tracking-[0.4em] text-accent">Deeplinks Insight</p>
               <h2 className="mt-2 text-3xl font-semibold text-white">{mode === 'login' ? t('auth.signin') : t('auth.signup')}</h2>
-              <p className="mt-2 text-sm text-slate-400">{t('auth.subtitle')}</p>
+              <p className="mt-2 text-sm text-slate-400">Authentifiez-vous pour accéder à votre tableau de bord et analysez vos liens en direct.</p>
               {signupDisabled && (
                 <div className="mt-3 inline-flex items-center gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-1 text-xs text-rose-200">
                   Inscriptions fermées par l'administrateur.
@@ -194,15 +199,9 @@ export const AuthPage = () => {
               {loading ? 'Processing...' : mode === 'login' ? t('auth.signin') : t('auth.signup')}
             </button>
 
-            <div className="flex items-center justify-between text-sm text-slate-400">
-              <span>
-                {signupDisabled
-                  ? 'Les inscriptions sont désactivées.'
-                  : mode === 'login'
-                    ? "Besoin d'un compte ?"
-                    : 'Déjà inscrit ?'}
-              </span>
-              {!signupDisabled && (
+            {!signupDisabled && (
+              <div className="flex items-center justify-between text-sm text-slate-400">
+                <span>{mode === 'login' ? "Besoin d'un compte ?" : 'Déjà inscrit ?'}</span>
                 <button
                   type="button"
                   onClick={() => {
@@ -213,23 +212,9 @@ export const AuthPage = () => {
                 >
                   {mode === 'login' ? t('auth.signup') : t('auth.signin')}
                 </button>
-              )}
-            </div>
+              </div>
+            )}
 
-            <div className="space-y-2 pt-2">
-              <button
-                type="button"
-                className="w-full rounded-xl border border-slate-700 bg-slate-900/40 px-4 py-3 text-sm text-slate-200 transition hover:border-accent"
-              >
-                {t('auth.oauthGithub')}
-              </button>
-              <button
-                type="button"
-                className="w-full rounded-xl border border-slate-700 bg-slate-900/40 px-4 py-3 text-sm text-slate-200 transition hover:border-accent"
-              >
-                {t('auth.oauthDiscord')}
-              </button>
-            </div>
           </form>
         </Card>
       </div>

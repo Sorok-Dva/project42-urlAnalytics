@@ -4,12 +4,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { BarChart3, RefreshCcw, ChevronDown } from 'lucide-react'
 import { useAuth } from '../stores/auth'
-import type { AggregationInterval } from '@p42/shared'
 import type { AnalyticsAggregation, AnalyticsFilters } from '../types'
 import { fetchLinks, fetchLinkDetails, toggleLinkPublicStats, exportLinkStats } from '../api/links'
 import { fetchProjects } from '../api/projects'
 import { fetchEventsAnalytics } from '../api/events'
-import { LineChart } from '../components/LineChart'
 import { DataTable } from '../components/DataTable'
 import { useRealtimeAnalytics } from '../hooks/useRealtimeAnalytics'
 import dayjs from '../lib/dayjs'
@@ -18,50 +16,90 @@ import { BreakdownCard } from '../components/BreakdownCard'
 import { FilterSelect } from '../components/FilterSelect'
 import { FilterAccordionSection } from '../components/FilterAccordionSection'
 import { GeoAnalyticsMap } from '../components/GeoAnalyticsMap'
-import { ResponsiveContainer, BarChart, Bar, XAxis, Tooltip, LabelList, PieChart as RechartsPieChart, Pie, Cell, Legend, CartesianGrid, YAxis } from 'recharts'
+import {
+  ResponsiveContainer,
+  Tooltip,
+  PieChart as RechartsPieChart,
+  Pie,
+  Cell,
+  Legend,
+  BarChart as RechartsBarChart,
+  Bar,
+  CartesianGrid,
+  XAxis,
+  YAxis
+} from 'recharts'
+import { LineChart } from '../components/LineChart'
 import type { AnalyticsFilterGroup } from '../types'
+import type { AggregationInterval } from '@p42/shared'
 
 const numberFormatter = new Intl.NumberFormat('fr-FR')
 
-type TimeSeriesKey = '1m' | '5m' | '15m' | '30m' | '1h' | '6h' | '12h' | 'hourly' | 'daily' | 'monthly'
+const formatInteractionLabel = (value: string) => {
+  switch (value) {
+    case 'scan':
+      return 'Scan'
+    case 'direct':
+      return 'Direct'
+    case 'api':
+      return 'API'
+    case 'bot':
+      return 'Bot'
+    case 'click':
+      return 'Click'
+    default:
+      return value.charAt(0).toUpperCase() + value.slice(1)
+  }
+}
+
+type TimeSeriesKey = AggregationInterval
 
 const timeSeriesOptions = [
-  { key: '1m', label: '1 min' },
-  { key: '5m', label: '5 min' },
-  { key: '15m', label: '15 min' },
-  { key: '30m', label: '30 min' },
-  { key: '1h', label: '1 h' },
-  { key: '6h', label: '6 h' },
-  { key: '12h', label: '12 h' },
-  { key: 'hourly', label: '24 h' },
-  { key: 'daily', label: '30 jours' },
-  { key: 'monthly', label: '12 mois' }
-] as const satisfies ReadonlyArray<{ key: TimeSeriesKey; label: string }>
+  { key: '1min', label: '1 min', granularity: 'second' as const },
+  { key: '5min', label: '5 min', granularity: 'second' as const },
+  { key: '15min', label: '15 min', granularity: 'second' as const },
+  { key: '30min', label: '30 min', granularity: 'second' as const },
+  { key: '1h', label: '1 h', granularity: 'minute' as const },
+  { key: '6h', label: '6 h', granularity: 'minute' as const },
+  { key: '12h', label: '12 h', granularity: 'hour' as const },
+  { key: '1d', label: '24 h', granularity: 'hour' as const },
+  { key: '1w', label: '7 jours', granularity: 'hour' as const },
+  { key: '1m', label: '30 jours', granularity: 'day' as const },
+  { key: '3m', label: '3 mois', granularity: 'day' as const },
+  { key: '1y', label: '12 mois', granularity: 'month' as const },
+  { key: 'all', label: 'Tout', granularity: 'month' as const }
+] as const satisfies ReadonlyArray<{ key: TimeSeriesKey; label: string; granularity: 'second' | 'minute' | 'hour' | 'day' | 'month' }>
 
-const timeSeriesDurations: Record<TimeSeriesKey, { amount: number; unit: 'minute' | 'hour' | 'day' | 'month' }> = {
-  '1m': { amount: 1, unit: 'minute' },
-  '5m': { amount: 5, unit: 'minute' },
-  '15m': { amount: 15, unit: 'minute' },
-  '30m': { amount: 30, unit: 'minute' },
-  '1h': { amount: 1, unit: 'hour' },
-  '6h': { amount: 6, unit: 'hour' },
+const timeSeriesDurations: Record<TimeSeriesKey, { amount: number; unit: 'second' | 'minute' | 'hour' | 'day' | 'month' | 'year' } | null> = {
+  all: null,
+  '1y': { amount: 1, unit: 'year' },
+  '3m': { amount: 3, unit: 'month' },
+  '1m': { amount: 1, unit: 'month' },
+  '1w': { amount: 7, unit: 'day' },
+  '1d': { amount: 1, unit: 'day' },
   '12h': { amount: 12, unit: 'hour' },
-  hourly: { amount: 24, unit: 'hour' },
-  daily: { amount: 30, unit: 'day' },
-  monthly: { amount: 12, unit: 'month' }
+  '6h': { amount: 6, unit: 'hour' },
+  '1h': { amount: 1, unit: 'hour' },
+  '30min': { amount: 30, unit: 'minute' },
+  '15min': { amount: 15, unit: 'minute' },
+  '5min': { amount: 5, unit: 'minute' },
+  '1min': { amount: 60, unit: 'second' }
 }
 
 const timeSeriesRefreshIntervals: Record<TimeSeriesKey, number | null> = {
-  '1m': 60_000,
-  '5m': 5 * 60_000,
-  '15m': 15 * 60_000,
-  '30m': 30 * 60_000,
-  '1h': 60 * 60_000,
-  '6h': 6 * 60 * 60_000,
+  all: null,
+  '1y': null,
+  '3m': null,
+  '1m': 12 * 60 * 60_000,
+  '1w': 6 * 60 * 60_000,
+  '1d': 60 * 60_000,
   '12h': 12 * 60 * 60_000,
-  hourly: 60 * 60_000,
-  daily: 24 * 60 * 60_000,
-  monthly: 30 * 24 * 60 * 60_000
+  '6h': 3 * 60 * 60_000,
+  '1h': 60 * 60_000,
+  '30min': 30 * 60_000,
+  '15min': 15 * 60_000,
+  '5min': 5 * 60_000,
+  '1min': 60_000
 }
 
 const chartPalette = ['#38bdf8', '#7f5af0', '#ec4899', '#f97316', '#22c55e', '#facc15', '#a855f7', '#14b8a6'] as const
@@ -96,68 +134,75 @@ const trafficSegments: Array<{ value: 'all' | 'bot' | 'human'; label: string }> 
   { value: 'bot', label: 'Bot' }
 ]
 
-const intervalOptions: Array<{ value: AggregationInterval; label: string }> = [
-  { value: '1d', label: '24 h' },
-  { value: '1w', label: '7 jours' },
-  { value: '1m', label: '30 jours' },
-  { value: '3m', label: '90 jours' },
-  { value: '1y', label: '12 mois' },
-  { value: 'all', label: 'Tout' }
-]
-
-const HourlyChart = ({ data }: { data: AnalyticsAggregation['byHour'] }) => (
-  <div className="h-64 w-full">
-    <ResponsiveContainer>
-      <BarChart data={data ?? []} margin={{ top: 24, right: 12, left: 0, bottom: 8 }}>
-        <XAxis dataKey="label" stroke="#64748b" tickLine={false} axisLine={false} interval={1} fontSize={12} />
-        <Tooltip
-          cursor={{ fill: '#0f172a' }}
-          contentStyle={{ background: '#0f172a', borderRadius: 12, border: '1px solid #334155' }}
-          labelStyle={{ color: '#e2e8f0' }}
-          formatter={(value: number, _name, payload) => [`${numberFormatter.format(value)} (${percentageFormatter(payload?.payload?.percentage ?? 0)})`, 'Hits']}
-        />
-        <Bar dataKey="total" radius={[6, 6, 0, 0]} fill="#38bdf8">
-          <LabelList
-            dataKey="total"
-            position="top"
-            formatter={(value: number, _entry: unknown, index: number) => {
-              const percentage = Array.isArray(data) && data[index] ? data[index]!.percentage ?? 0 : 0
-              return `${numberFormatter.format(value)} (${percentageFormatter(percentage)})`
-            }}
-            style={{ fill: '#e2e8f0', fontSize: 10 }}
+const HourlyChart = ({ data }: { data: AnalyticsAggregation['byHour'] }) => {
+  const dataset = Array.isArray(data) ? data : []
+  return (
+    <div className="h-64 w-full">
+      <ResponsiveContainer>
+        <RechartsBarChart data={dataset} margin={{ top: 12, left: 0, right: 0, bottom: 0 }}>
+          <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" vertical={false} />
+          <XAxis
+            dataKey="label"
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: '#94a3b8', fontSize: 11 }}
           />
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
-  </div>
-)
-
-const WeekdayChart = ({ data }: { data: AnalyticsAggregation['byWeekday'] }) => (
-  <div className="h-64 w-full">
-    <ResponsiveContainer>
-      <BarChart data={data ?? []} margin={{ top: 24, right: 12, left: 0, bottom: 8 }}>
-        <XAxis dataKey="label" stroke="#64748b" tickLine={false} axisLine={false} fontSize={12} />
-        <Tooltip
-          cursor={{ fill: '#0f172a' }}
-          contentStyle={{ background: '#0f172a', borderRadius: 12, border: '1px solid #334155' }}
-          labelStyle={{ color: '#e2e8f0' }}
-          formatter={(value: number, _name, payload) => [`${numberFormatter.format(value)} (${percentageFormatter(payload?.payload?.percentage ?? 0)})`, 'Hits']}
-        />
-        <Bar dataKey="total" radius={[6, 6, 0, 0]} fill="#7f5af0">
-          <LabelList
-            dataKey="total"
-            position="top"
-            formatter={(value: number, _entry: unknown, index: number) => {
-              const percentage = Array.isArray(data) && data[index] ? data[index]!.percentage ?? 0 : 0
-              return `${numberFormatter.format(value)} (${percentageFormatter(percentage)})`
-            }}
-            style={{ fill: '#e2e8f0', fontSize: 10 }}
+          <YAxis
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: '#94a3b8', fontSize: 11 }}
+            allowDecimals={false}
           />
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
-  </div>
-)
+          <Tooltip
+            cursor={{ fill: 'rgba(59,130,246,0.08)' }}
+            contentStyle={{ background: '#0f172a', borderRadius: 12, border: '1px solid #334155' }}
+            formatter={(value: number | string, _name, entry) => {
+              const raw = typeof value === 'number' ? value : Number(value ?? 0)
+              const percentage = percentageFormatter(entry?.payload?.percentage ?? 0)
+              return [`${numberFormatter.format(raw)} (${percentage})`, entry?.payload?.label ?? '']
+            }}
+          />
+          <Bar dataKey="total" fill="#38bdf8" radius={[4, 4, 0, 0]} />
+        </RechartsBarChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
+const WeekdayChart = ({ data }: { data: AnalyticsAggregation['byWeekday'] }) => {
+  const dataset = Array.isArray(data) ? data : []
+  return (
+    <div className="h-64 w-full">
+      <ResponsiveContainer>
+        <RechartsBarChart data={dataset} margin={{ top: 12, left: 0, right: 0, bottom: 0 }}>
+          <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" vertical={false} />
+          <XAxis
+            dataKey="label"
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: '#94a3b8', fontSize: 11 }}
+          />
+          <YAxis
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: '#94a3b8', fontSize: 11 }}
+            allowDecimals={false}
+          />
+          <Tooltip
+            cursor={{ fill: 'rgba(124,58,237,0.08)' }}
+            contentStyle={{ background: '#0f172a', borderRadius: 12, border: '1px solid #334155' }}
+            formatter={(value: number | string, _name, entry) => {
+              const raw = typeof value === 'number' ? value : Number(value ?? 0)
+              const percentage = percentageFormatter(entry?.payload?.percentage ?? 0)
+              return [`${numberFormatter.format(raw)} (${percentage})`, entry?.payload?.label ?? '']
+            }}
+          />
+          <Bar dataKey="total" fill="#7f5af0" radius={[4, 4, 0, 0]} />
+        </RechartsBarChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
 
 export const StatisticsPage = () => {
   const { t } = useTranslation()
@@ -165,14 +210,13 @@ export const StatisticsPage = () => {
   const queryClient = useQueryClient()
   const { workspaceId, token } = useAuth()
 
-  const [interval, setInterval] = useState<AggregationInterval>('1m')
-  const [selectedTimeSeries, setSelectedTimeSeries] = useState<TimeSeriesKey>('hourly')
+  const [selectedTimeSeries, setSelectedTimeSeries] = useState<TimeSeriesKey>('1d')
   const [selectedLink, setSelectedLink] = useState<string>('all')
   const [selectedProject, setSelectedProject] = useState<string>('all')
   const [filters, setFilters] = useState<AnalyticsFilters>({})
   const [trafficSegment, setTrafficSegment] = useState<'all' | 'bot' | 'human'>('all')
   const [hideLocalReferrers, setHideLocalReferrers] = useState(false)
-  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   const serializedFilters = useMemo(() => serializeFilters(filters), [filters])
 
@@ -186,14 +230,14 @@ export const StatisticsPage = () => {
   }, [params.linkId])
 
   const analyticsQuery = useQuery({
-    queryKey: ['analytics', selectedProject, selectedLink, interval, serializedFilters],
+    queryKey: ['analytics', selectedProject, selectedLink, serializedFilters, selectedTimeSeries],
     enabled: Boolean(token && workspaceId),
     queryFn: () =>
       fetchEventsAnalytics({
-        period: interval,
         projectId: selectedProject !== 'all' ? selectedProject : undefined,
         linkId: selectedLink !== 'all' ? selectedLink : undefined,
-        filters: serializedFilters
+        filters: serializedFilters,
+        period: selectedTimeSeries
       })
   })
 
@@ -201,8 +245,7 @@ export const StatisticsPage = () => {
 
   const handleTimeSeriesSelect = useCallback((key: TimeSeriesKey) => {
     setSelectedTimeSeries(key)
-    refetchAnalytics()
-  }, [refetchAnalytics])
+  }, [])
 
   const refreshInterval = timeSeriesRefreshIntervals[selectedTimeSeries] ?? null
 
@@ -254,13 +297,9 @@ export const StatisticsPage = () => {
     const total = dataset.reduce((acc, point) => acc + point.total, 0)
     return { data: dataset, total }
   }, [analytics?.timeSeries, selectedTimeSeries])
-  const timeGranularity = useMemo(() => {
-    if (['1m', '5m', '15m', '30m'].includes(selectedTimeSeries)) return 'minute'
-    if (['1h', '6h', '12h', 'hourly'].includes(selectedTimeSeries)) return 'hour'
-    if (selectedTimeSeries === 'daily') return 'day'
-    if (selectedTimeSeries === 'monthly') return 'month'
-    return 'minute'
-  }, [selectedTimeSeries])
+  const timeSeriesOptionMap = useMemo(() => new Map(timeSeriesOptions.map(option => [option.key, option])), [])
+  const selectedTimeSeriesMeta = timeSeriesOptionMap.get(selectedTimeSeries)
+  const chartGranularity = analytics?.timeSeriesGranularity ?? selectedTimeSeriesMeta?.granularity ?? 'minute'
   const filterGroups = useMemo<AnalyticsFilterGroup[]>(() => analytics?.availableFilters ?? [], [analytics?.availableFilters])
 
   const filterGroupMap = useMemo(() => {
@@ -323,10 +362,8 @@ export const StatisticsPage = () => {
 
   const handleResetAllFilters = useCallback(() => {
     setFilters({})
-    setInterval('1m')
     setTrafficSegment('all')
     setHideLocalReferrers(false)
-    setAdvancedFiltersOpen(false)
   }, [])
 
   const handleToggleFilter = useCallback((groupId: keyof AnalyticsFilters, value: string) => {
@@ -434,6 +471,17 @@ export const StatisticsPage = () => {
       }))
     })
   }, [analytics?.availableFilters, appliedFilters])
+
+  const activeFilterCount = activeFilterChips.length
+  const filtersSummary =
+    activeFilterCount === 0
+      ? 'Aucun filtre actif'
+      : `${activeFilterCount} filtre${activeFilterCount > 1 ? 's' : ''} actif${activeFilterCount > 1 ? 's' : ''}`
+  const toggleLabel = filtersOpen
+    ? 'Masquer les filtres'
+    : activeFilterCount > 0
+      ? `Afficher les filtres (${activeFilterCount})`
+      : 'Afficher les filtres'
 
   const botStatusMap = useMemo(() => {
     const map = new Map<string, NonNullable<AnalyticsAggregation['byBotStatus']>[number]>()
@@ -590,217 +638,145 @@ export const StatisticsPage = () => {
       <div className="rounded-2xl border border-blue-500/30 bg-gradient-to-r from-black/60 to-blue-900/20 p-5 shadow-inner shadow-blue-500/10">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-white">Dashboard Analytics Super Admin</h1>
-            <p className="text-sm text-blue-200 mt-1">
+            <h1 className="text-2xl font-semibold text-white">Filtres des deeplinks</h1>
+            <p className="mt-1 text-sm text-blue-200">
               Explorez les métriques clés : filtres dynamiques, graphiques détaillés et cartographie interactive.
             </p>
+            <p className="mt-3 text-xs text-blue-300/80">{filtersSummary}</p>
           </div>
           <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
             <button
               type="button"
+              onClick={() => setFiltersOpen(prev => !prev)}
+              className="flex items-center gap-2 rounded-lg border border-blue-500/40 px-3 py-2 text-xs text-blue-200 transition hover:bg-blue-900/30"
+              aria-expanded={filtersOpen}
+              aria-controls="statistics-filters-panel"
+            >
+              <span>{toggleLabel}</span>
+              <ChevronDown className={`h-4 w-4 transition-transform ${filtersOpen ? 'rotate-180' : ''}`} />
+            </button>
+            <button
+              type="button"
               onClick={handleResetAllFilters}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-blue-500/40 text-blue-200 transition hover:bg-blue-900/30 disabled:opacity-70"
+              className="flex items-center gap-2 rounded-lg border border-blue-500/40 px-3 py-2 text-blue-200 transition hover:bg-blue-900/30 disabled:opacity-70"
               disabled={analyticsQuery.isFetching}
             >
               <RefreshCcw className="h-4 w-4" />
               Réinitialiser
             </button>
-            <p className="text-xs text-blue-300/80">Les filtres se mettent à jour automatiquement.</p>
           </div>
         </div>
-
-        <div className="mt-6 space-y-6">
-          <section className="space-y-4">
-            <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-blue-200">Filtres rapides</h2>
-              <p className="mt-1 text-xs text-blue-300/80">Ajustez rapidement les critères principaux avant d'affiner avec les options avancées.</p>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <div className="flex flex-col gap-2 text-sm text-blue-100">
-                <span className="font-medium uppercase tracking-wide text-xs text-blue-300">Période</span>
-                <div className="flex flex-wrap gap-2 rounded-lg border border-blue-500/40 bg-slate-900/60 p-1">
-                  {intervalOptions.map(option => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => setInterval(option.value)}
-                      className={`flex-1 rounded-md px-3 py-1 text-xs transition ${
-                        interval === option.value
-                          ? 'bg-blue-500/40 text-white shadow-inner shadow-blue-500/20'
-                          : 'text-blue-200 hover:text-white'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2 text-sm text-blue-100">
-                <span className="font-medium uppercase tracking-wide text-xs text-blue-300">Trafic</span>
-                <div className="flex items-center gap-1 rounded-lg border border-blue-500/40 bg-slate-900/60 p-1">
-                  {trafficSegments.map(option => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => handleTrafficSegmentChange(option.value)}
-                      className={`flex-1 rounded-md px-3 py-1 text-xs transition ${
-                        trafficSegment === option.value
-                          ? 'bg-blue-500/40 text-white shadow-inner shadow-blue-500/20'
-                          : 'text-blue-200 hover:text-white'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <FilterSelect
-                label="Pays"
-                options={getFilterOptions('country')}
-                value={getFilterValues('country')}
-                onChange={values => handleSetFilterValues('country', values)}
-                placeholder="Sélectionner des pays"
-              />
-              <FilterSelect
-                label="Villes"
-                options={getFilterOptions('city')}
-                value={getFilterValues('city')}
-                onChange={values => handleSetFilterValues('city', values)}
-                placeholder="Rechercher des villes"
-              />
-              <FilterSelect
-                label="Sources"
-                options={getFilterOptions('referer')}
-                value={getFilterValues('referer')}
-                onChange={values => handleSetFilterValues('referer', values)}
-                placeholder="Sélectionner des sources"
-              />
-              <FilterSelect
-                label="Appareils"
-                options={getFilterOptions('device')}
-                value={getFilterValues('device')}
-                onChange={values => handleSetFilterValues('device', values)}
-                placeholder="Types d'appareils"
-              />
-              <FilterSelect
-                label="Systèmes d'exploitation"
-                options={getFilterOptions('os')}
-                value={getFilterValues('os')}
-                onChange={values => handleSetFilterValues('os', values)}
-                placeholder="Sélectionner des OS"
-              />
-              <FilterSelect
-                label="Navigateurs"
-                options={getFilterOptions('browser')}
-                value={getFilterValues('browser')}
-                onChange={values => handleSetFilterValues('browser', values)}
-                placeholder="Sélectionner des navigateurs"
-              />
-              <FilterSelect
-                label="Langues"
-                options={getFilterOptions('language')}
-                value={getFilterValues('language')}
-                onChange={values => handleSetFilterValues('language', values)}
-                placeholder="Sélectionner des langues"
-              />
-              <div className="flex items-center justify-between gap-3 rounded-lg border border-blue-500/30 bg-slate-900/50 p-3 text-blue-100">
-                <div className="flex flex-col">
-                  <span className="text-xs font-medium uppercase tracking-wide text-blue-300">Référers externes</span>
-                  <span className="text-[11px] text-blue-300/80">Masquer les referrers venant du site lui-même.</span>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={hideLocalReferrers}
-                  onClick={toggleHideLocalReferrers}
-                  className={`relative h-6 w-11 rounded-full border transition ${
-                    hideLocalReferrers ? 'border-blue-500/70 bg-blue-500/40' : 'border-blue-500/30 bg-slate-900/80'
-                  }`}
-                >
-                  <span
-                    className={`absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-white transition-transform ${
-                      hideLocalReferrers ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </div>
-            </div>
-          </section>
-
-          <section className="rounded-xl border border-blue-500/30 bg-slate-900/40 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+        <div
+          id="statistics-filters-panel"
+          className={`grid overflow-hidden transition-all duration-300 ${
+            filtersOpen ? 'mt-6 grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0 pointer-events-none'
+          }`}
+          aria-hidden={!filtersOpen}
+        >
+          <div className="min-h-0 space-y-6">
+            <section className="space-y-4">
               <div>
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-blue-200">Filtres avancés</h2>
-                <p className="text-xs text-blue-300/80">Déployez les sections ci-dessous pour segmenter plus finement.</p>
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-blue-200">Filtres rapides</h2>
+                <p className="mt-1 text-xs text-blue-300/80">Ajustez rapidement les critères principaux avant d'affiner avec les options avancées.</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setAdvancedFiltersOpen(prev => !prev)}
-                className="flex items-center gap-2 rounded-lg border border-blue-500/40 px-3 py-2 text-xs font-medium text-blue-200 transition hover:bg-blue-900/30"
-                aria-expanded={advancedFiltersOpen}
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div className="flex flex-col gap-2 text-sm text-blue-100">
+                  <span className="font-medium uppercase tracking-wide text-xs text-blue-300">Trafic</span>
+                  <div className="flex items-center gap-1 rounded-lg border border-blue-500/40 bg-slate-900/60 p-1">
+                    {trafficSegments.map(option => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => handleTrafficSegmentChange(option.value)}
+                        className={`flex-1 rounded-md px-3 py-1 text-xs transition ${
+                          trafficSegment === option.value
+                            ? 'bg-blue-500/40 text-white shadow-inner shadow-blue-500/20'
+                            : 'text-blue-200 hover:text-white'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <FilterSelect
+                  label="Pays"
+                  options={getFilterOptions('country')}
+                  value={getFilterValues('country')}
+                  onChange={values => handleSetFilterValues('country', values)}
+                  placeholder="Sélectionner des pays"
+                />
+                <FilterSelect
+                  label="Villes"
+                  options={getFilterOptions('city')}
+                  value={getFilterValues('city')}
+                  onChange={values => handleSetFilterValues('city', values)}
+                  placeholder="Rechercher des villes"
+                />
+                <FilterSelect
+                  label="Sources"
+                  options={getFilterOptions('referer')}
+                  value={getFilterValues('referer')}
+                  onChange={values => handleSetFilterValues('referer', values)}
+                  placeholder="Sélectionner des sources"
+                />
+                <FilterSelect
+                  label="Appareils"
+                  options={getFilterOptions('device')}
+                  value={getFilterValues('device')}
+                  onChange={values => handleSetFilterValues('device', values)}
+                  placeholder="Types d'appareils"
+                />
+                <FilterSelect
+                  label="Systèmes d'exploitation"
+                  options={getFilterOptions('os')}
+                  value={getFilterValues('os')}
+                  onChange={values => handleSetFilterValues('os', values)}
+                  placeholder="Sélectionner des OS"
+                />
+                <FilterSelect
+                  label="Navigateurs"
+                  options={getFilterOptions('browser')}
+                  value={getFilterValues('browser')}
+                  onChange={values => handleSetFilterValues('browser', values)}
+                  placeholder="Sélectionner des navigateurs"
+                />
+                <FilterSelect
+                  label="Langues"
+                  options={getFilterOptions('language')}
+                  value={getFilterValues('language')}
+                  onChange={values => handleSetFilterValues('language', values)}
+                  placeholder="Sélectionner des langues"
+                />
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-blue-500/30 bg-slate-900/50 p-3 text-blue-100">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-medium uppercase tracking-wide text-blue-300">Référers externes</span>
+                    <span className="text-[11px] text-blue-300/80">Masquer les referrers venant du site lui-même.</span>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={hideLocalReferrers}
+                    onClick={toggleHideLocalReferrers}
+                    className={`relative h-6 w-11 rounded-full border transition ${
+                      hideLocalReferrers ? 'border-blue-500/70 bg-blue-500/40' : 'border-blue-500/30 bg-slate-900/80'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition ${
+                        hideLocalReferrers ? 'right-0.5' : 'left-0.5'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              <FilterAccordionSection
+                title="Filtres avancés"
+                description="Ciblez précisément vos évènements (UTM, bots, langues…)"
               >
-                {advancedFiltersOpen ? 'Masquer les filtres avancés' : 'Afficher les filtres avancés'}
-                <ChevronDown className={`h-3 w-3 transition-transform ${advancedFiltersOpen ? 'rotate-180' : ''}`} />
-              </button>
-            </div>
-            {advancedFiltersOpen && (
-              <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <FilterAccordionSection title="Évènements & trafic" contentClassName="space-y-4">
-                  <FilterSelect
-                    label="Type d'évènement"
-                    options={getFilterOptions('eventType')}
-                    value={getFilterValues('eventType')}
-                    onChange={values => handleSetFilterValues('eventType', values)}
-                    placeholder="Clicks, scans, ..."
-                  />
-                  <FilterSelect
-                    label="Trafic"
-                    options={getFilterOptions('isBot')}
-                    value={getFilterValues('isBot')}
-                    onChange={values => handleSetFilterValues('isBot', values)}
-                    placeholder="Bot ou humain"
-                  />
-                </FilterAccordionSection>
-                <FilterAccordionSection title="Localisation avancée" contentClassName="space-y-4">
-                  <FilterSelect
-                    label="Continents"
-                    options={getFilterOptions('continent')}
-                    value={getFilterValues('continent')}
-                    onChange={values => handleSetFilterValues('continent', values)}
-                    placeholder="Rechercher des continents"
-                  />
-                  <FilterSelect
-                    label="Pays"
-                    options={getFilterOptions('country')}
-                    value={getFilterValues('country')}
-                    onChange={values => handleSetFilterValues('country', values)}
-                    placeholder="Pays ciblés"
-                  />
-                </FilterAccordionSection>
-                <FilterAccordionSection title="Technologies" contentClassName="grid grid-cols-1 gap-4">
-                  <FilterSelect
-                    label="Appareils"
-                    options={getFilterOptions('device')}
-                    value={getFilterValues('device')}
-                    onChange={values => handleSetFilterValues('device', values)}
-                    placeholder="Type d'appareil"
-                  />
-                  <FilterSelect
-                    label="OS"
-                    options={getFilterOptions('os')}
-                    value={getFilterValues('os')}
-                    onChange={values => handleSetFilterValues('os', values)}
-                    placeholder="Systèmes"
-                  />
-                  <FilterSelect
-                    label="Navigateurs"
-                    options={getFilterOptions('browser')}
-                    value={getFilterValues('browser')}
-                    onChange={values => handleSetFilterValues('browser', values)}
-                    placeholder="Navigateurs"
-                  />
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                   <FilterSelect
                     label="Langues"
                     options={getFilterOptions('language')}
@@ -808,8 +784,13 @@ export const StatisticsPage = () => {
                     onChange={values => handleSetFilterValues('language', values)}
                     placeholder="Langues utilisateurs"
                   />
-                </FilterAccordionSection>
-                <FilterAccordionSection title="Campagnes & UTM" contentClassName="grid grid-cols-1 gap-4">
+                  <FilterSelect
+                    label="Continent"
+                    options={getFilterOptions('continent')}
+                    value={getFilterValues('continent')}
+                    onChange={values => handleSetFilterValues('continent', values)}
+                    placeholder="Continent"
+                  />
                   <FilterSelect
                     label="UTM Source"
                     options={getFilterOptions('utmSource')}
@@ -845,10 +826,11 @@ export const StatisticsPage = () => {
                     onChange={values => handleSetFilterValues('utmTerm', values)}
                     placeholder="utm_term"
                   />
-                </FilterAccordionSection>
-              </div>
-            )}
-          </section>
+                </div>
+              </FilterAccordionSection>
+            </section>
+            <p className="text-xs text-blue-300/80">Les filtres se mettent à jour automatiquement.</p>
+          </div>
         </div>
       </div>
 
@@ -865,12 +847,55 @@ export const StatisticsPage = () => {
             </button>
           ))}
         </div>
-      )}
+  )}
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {metricCards.map(card => (
           <MetricCard key={card.label} label={card.label} value={card.value} trend={card.trend} />
         ))}
+      </section>
+
+      <section className="rounded-2xl border border-slate-800/70 bg-slate-900/40 p-6">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h3 className="flex items-center gap-2 text-lg font-semibold text-white">
+              <BarChart3 className="h-4 w-4 text-blue-300" />
+              {t('home.recentClicks')}
+            </h3>
+            <p className="text-xs text-slate-400">
+              {numberFormatter.format(filteredTimeSeries.total)} évènements · {selectedTimeSeriesMeta?.label ?? ''}
+            </p>
+          </div>
+          <div className="flex flex-wrap justify-end gap-2">
+            <button
+              onClick={() => handleExport('csv')}
+              disabled={selectedLink === 'all'}
+              className={`rounded-md border px-3 py-1 text-xs ${
+                selectedLink === 'all'
+                  ? 'cursor-not-allowed border-slate-800 text-slate-600'
+                  : 'border-slate-700 text-slate-200 hover:border-accent'
+              }`}
+            >
+              {t('statistics.exportCsv')}
+            </button>
+            <button
+              onClick={() => handleExport('json')}
+              disabled={selectedLink === 'all'}
+              className={`rounded-md border px-3 py-1 text-xs ${
+                selectedLink === 'all'
+                  ? 'cursor-not-allowed border-slate-800 text-slate-600'
+                  : 'border-slate-700 text-slate-200 hover:border-accent'
+              }`}
+            >
+              {t('statistics.exportJson')}
+            </button>
+          </div>
+        </div>
+        {filteredTimeSeries.data.length > 0 ? (
+          <LineChart data={filteredTimeSeries.data} granularity={chartGranularity} total={filteredTimeSeries.total} />
+        ) : (
+          <div className="flex h-64 items-center justify-center text-sm text-muted">Aucune donnée temporelle</div>
+        )}
       </section>
 
       <section className="grid gap-6 lg:grid-cols-3">
@@ -959,28 +984,9 @@ export const StatisticsPage = () => {
           {topReferers.length > 0 ? (
             <div className="h-60">
               <ResponsiveContainer>
-                <BarChart
-                  data={topReferers}
-                  layout="vertical"
-                  margin={{ top: 8, right: 16, left: 0, bottom: 8 }}
-                >
-                  <CartesianGrid stroke="#1e293b" horizontal={false} strokeDasharray="3 3" />
-                  <XAxis
-                    type="number"
-                    tick={{ fill: '#94a3b8', fontSize: 11 }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    dataKey="label"
-                    type="category"
-                    width={140}
-                    tick={{ fill: '#94a3b8', fontSize: 11 }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
+                <RechartsPieChart>
                   <Tooltip
-                    cursor={{ fill: '#0f172a' }}
+                    cursor={false}
                     contentStyle={{ background: '#0f172a', borderRadius: 12, border: '1px solid #334155' }}
                     formatter={(value: number | string, _name, entry) => {
                       const raw = typeof value === 'number' ? value : Number(value ?? 0)
@@ -988,48 +994,19 @@ export const StatisticsPage = () => {
                       return [`${numberFormatter.format(raw)} (${percentage})`, entry?.payload?.label ?? '']
                     }}
                   />
-                  <Bar dataKey="total" fill="#38bdf8" radius={[0, 6, 6, 0]} />
-                </BarChart>
+                  <Legend verticalAlign="bottom" height={32} wrapperStyle={{ color: '#94a3b8', fontSize: 11 }} />
+                  <Pie data={topReferers} dataKey="total" nameKey="label" innerRadius={50} outerRadius={80} paddingAngle={4}>
+                    {topReferers.map((entry, index) => (
+                      <Cell key={entry.value ?? index} fill={chartPalette[index % chartPalette.length]} />
+                    ))}
+                  </Pie>
+                </RechartsPieChart>
               </ResponsiveContainer>
             </div>
           ) : (
             <div className="flex h-60 items-center justify-center text-sm text-muted">Pas de referers</div>
           )}
         </div>
-      </section>
-
-      <section className="rounded-2xl border border-slate-800/70 bg-slate-900/40 p-6">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
-          <h3 className="flex items-center gap-2 text-lg font-semibold text-white">
-            <BarChart3 className="h-4 w-4 text-blue-300" />
-            {t('home.recentClicks')}
-          </h3>
-        </div>
-        <div className="mb-4 flex flex-wrap justify-end gap-2">
-          <button
-            onClick={() => handleExport('csv')}
-            disabled={selectedLink === 'all'}
-            className={`rounded-md border px-3 py-1 text-xs ${
-              selectedLink === 'all'
-                ? 'cursor-not-allowed border-slate-800 text-slate-600'
-                : 'border-slate-700 text-slate-200 hover:border-accent'
-            }`}
-          >
-            {t('statistics.exportCsv')}
-          </button>
-          <button
-            onClick={() => handleExport('json')}
-            disabled={selectedLink === 'all'}
-            className={`rounded-md border px-3 py-1 text-xs ${
-              selectedLink === 'all'
-                ? 'cursor-not-allowed border-slate-800 text-slate-600'
-                : 'border-slate-700 text-slate-200 hover:border-accent'
-            }`}
-          >
-            {t('statistics.exportJson')}
-          </button>
-        </div>
-        <LineChart data={filteredTimeSeries.data} total={filteredTimeSeries.total} granularity={timeGranularity} />
       </section>
 
       {analytics.geo && (
@@ -1053,27 +1030,27 @@ export const StatisticsPage = () => {
       </section>
 
       <section className="grid gap-6 xl:grid-cols-3">
-        <BreakdownCard title="Appareils" items={analytics.byDevice ?? []} />
-        <BreakdownCard title="Systèmes" items={analytics.byOs ?? []} />
-        <BreakdownCard title="Navigateurs" items={analytics.byBrowser ?? []} />
+        <BreakdownCard title="Appareils" items={analytics.byDevice ?? []} variant="pie" />
+        <BreakdownCard title="Systèmes" items={analytics.byOs ?? []} variant="pie" />
+        <BreakdownCard title="Navigateurs" items={analytics.byBrowser ?? []} variant="pie" />
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2 xl:grid-cols-4">
-        <BreakdownCard title="Langues" items={analytics.byLanguage ?? []} />
-        <BreakdownCard title="Origine du trafic" items={analytics.byReferer ?? []} />
-        <BreakdownCard title="Type d'évènement" items={analytics.byEventType ?? []} />
-        <BreakdownCard title="Type de trafic" items={analytics.byBotStatus ?? []} />
+        <BreakdownCard title="Langues" items={analytics.byLanguage ?? []} variant="pie" />
+        <BreakdownCard title="Origine du trafic" items={analytics.byReferer ?? []} variant="pie" />
+        <BreakdownCard title="Type d'évènement" items={analytics.byEventType ?? []} variant="pie" />
+        <BreakdownCard title="Type de trafic" items={analytics.byBotStatus ?? []} variant="pie" />
       </section>
 
       <section className="grid gap-6 xl:grid-cols-3">
-        <BreakdownCard title="UTM Source" items={analytics.byUtmSource ?? []} />
-        <BreakdownCard title="UTM Medium" items={analytics.byUtmMedium ?? []} />
-        <BreakdownCard title="UTM Campaign" items={analytics.byUtmCampaign ?? []} />
+        <BreakdownCard title="UTM Source" items={analytics.byUtmSource ?? []} variant="pie" />
+        <BreakdownCard title="UTM Medium" items={analytics.byUtmMedium ?? []} variant="pie" />
+        <BreakdownCard title="UTM Campaign" items={analytics.byUtmCampaign ?? []} variant="pie" />
       </section>
 
       <section className="grid gap-6 xl:grid-cols-2">
-        <BreakdownCard title="UTM Content" items={analytics.byUtmContent ?? []} />
-        <BreakdownCard title="UTM Term" items={analytics.byUtmTerm ?? []} />
+        <BreakdownCard title="UTM Content" items={analytics.byUtmContent ?? []} variant="pie" />
+        <BreakdownCard title="UTM Term" items={analytics.byUtmTerm ?? []} variant="pie" />
       </section>
 
       <section className="grid gap-6 xl:grid-cols-2">
@@ -1093,7 +1070,18 @@ export const StatisticsPage = () => {
           data={eventsFlow}
           columns={[
             { key: 'occurredAt', label: 'Date', render: row => dayjs(row.occurredAt).format('DD MMM HH:mm') },
-            { key: 'eventType', label: 'Évènement', render: row => row.eventType?.toUpperCase() ?? 'N/A' },
+            {
+              key: 'eventType',
+              label: 'Évènement',
+              render: row => {
+                const meta = row?.metadata as { interactionType?: unknown } | null | undefined
+                const rawType =
+                  (typeof row?.interactionType === 'string' ? row.interactionType : undefined) ??
+                  (typeof meta?.interactionType === 'string' ? meta.interactionType : undefined) ??
+                  (typeof row?.eventType === 'string' ? row.eventType : undefined)
+                return rawType ? formatInteractionLabel(rawType.toLowerCase()) : 'N/A'
+              }
+            },
             {
               key: 'device',
               label: 'Appareil',

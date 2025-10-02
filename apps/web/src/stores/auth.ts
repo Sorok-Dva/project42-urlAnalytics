@@ -1,7 +1,8 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { loginRequest, fetchCurrentUser } from '../api/auth'
-import type { User, Workspace } from '../types'
+import { setAuthToken } from '../api/client'
+import type { User } from '../types'
 
 interface AuthState {
   token: string | null
@@ -26,20 +27,26 @@ export const useAuth = create<AuthState>()(
         set({ loading: true, error: null })
         try {
           const { token, user, workspaceId } = await loginRequest(credentials)
+          setAuthToken(token)
           set({ token, user, workspaceId, loading: false })
         } catch (error) {
           set({ error: 'Unable to login', loading: false })
           throw error
         }
       },
-      logout: () => set({ token: null, user: null, workspaceId: null }),
+      logout: () => {
+        setAuthToken(null)
+        set({ token: null, user: null, workspaceId: null, error: null, loading: false })
+      },
       loadSession: async () => {
         const { token } = get()
         if (!token) return
         try {
           const { user, workspaceId } = await fetchCurrentUser(token)
+          setAuthToken(token)
           set({ user, workspaceId })
         } catch (error) {
+          setAuthToken(null)
           set({ token: null, user: null, workspaceId: null })
         }
       }

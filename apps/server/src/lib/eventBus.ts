@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events'
 import Redis from 'ioredis'
 import { env } from '../config/env'
+import type { InteractionType } from './interactionType'
 
 type AnalyticsEventPayload = {
   linkId: string
@@ -10,6 +11,7 @@ type AnalyticsEventPayload = {
   event: {
     id: string
     occurredAt: string
+    interactionType?: InteractionType
     [key: string]: unknown
   }
 }

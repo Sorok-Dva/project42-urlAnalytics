@@ -49,7 +49,7 @@ export const buildTestWebhookPayload = () => ({
   event: 'click.recorded',
   timestamp: new Date().toISOString(),
   data: {
-    message: 'This is a webhook test from P42 | MIR-ALPHA'
+    message: 'This is a webhook test from Deeplinks Insight'
   }
 })
 

@@ -1,8 +1,9 @@
 import { apiClient } from './client'
 import type { AnalyticsAggregation } from '../types'
+import type { AggregationInterval } from '@p42/shared'
 
 export const fetchEventsAnalytics = async (params: {
-  period?: string
+  period?: AggregationInterval
   projectId?: string | null
   linkId?: string | null
   page?: number

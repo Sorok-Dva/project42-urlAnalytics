@@ -5,7 +5,21 @@ export const PaginationSchema = z.object({
   pageSize: z.coerce.number().min(1).max(100).default(25)
 })
 
-export const IntervalSchema = z.enum(['all', '1y', '3m', '1m', '1w', '1d'])
+export const IntervalSchema = z.enum([
+  'all',
+  '1y',
+  '3m',
+  '1m',
+  '1w',
+  '1d',
+  '12h',
+  '6h',
+  '1h',
+  '30min',
+  '15min',
+  '5min',
+  '1min'
+])
 
 export const PublicStatsSchema = z.object({
   enabled: z.boolean(),

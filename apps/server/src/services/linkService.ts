@@ -8,13 +8,20 @@ import { LinkEvent } from '../models/linkEvent'
 import type { LinkEventAttributes } from '../models/linkEvent'
 import { sequelize } from '../config/database'
 import { cacheLinkResolution, getCachedLink, invalidateLink, isDuplicateEvent, registerEventFingerprint } from '../lib/cache'
-import { resolveGeo, hashIp } from '../lib/geo'
+import { resolveGeo, hashIp, mergeGeoResults, type GeoResult } from '../lib/geo'
 import { parseUserAgent, isBotUserAgent } from '../lib/userAgent'
 import { dispatchWebhooks } from '../lib/webhooks'
+import { resolveInteractionType, getInteractionType, getInteractionLabel } from '../lib/interactionType'
 import { ensureWorkspaceLimit } from './workspaceService'
 import { publishAnalyticsEvent } from '../lib/eventBus'
 import { AggregationInterval, ApiLinkSchema, type AnalyticsFilters } from '@p42/shared'
-import { buildEventsFlow, buildTimeSeries, fetchEventsForInterval, summarizeByDimension } from '../lib/analytics'
+import {
+  buildEventsFlow,
+  buildTimeSeries,
+  fetchEventsForInterval,
+  getIntervalGranularity,
+  summarizeByDimension
+} from '../lib/analytics'
 
 const linkCreationSchema = ApiLinkSchema.extend({
   domain: z.string().min(1).default(env.defaultDomain),
@@ -291,11 +298,13 @@ export const recordLinkEvent = async (params: {
   locale?: string
   doNotTrack?: boolean
   query?: Record<string, unknown>
+  geoOverride?: Partial<GeoResult>
 }) => {
-  const { link, ip, userAgent, referer, eventType, locale, doNotTrack, query } = params
+  const { link, ip, userAgent, referer, eventType, locale, doNotTrack, query, geoOverride } = params
   const { device, os, browser } = parseUserAgent(userAgent)
   const isBot = isBotUserAgent(userAgent)
-  const geo = await resolveGeo(ip ?? '')
+  const interactionType = resolveInteractionType({ eventType, referer, isBot, userAgent })
+  const geo = mergeGeoResults(ip ? await resolveGeo(ip) : null, geoOverride)
   const geoRedirect = evaluateGeoRules(link, geo.country, geo.continent)
   const ipHash = hashIp(ip)
   const fingerprint = ipHash ? `${link.id}:${ipHash}:${eventType}:${browser}:${new Date().getMinutes()}` : null
@@ -333,7 +342,8 @@ export const recordLinkEvent = async (params: {
     occurredAt: new Date(),
     metadata: {
       redirectTo: targetUrl,
-      domain: params.domain
+      domain: params.domain,
+      interactionType
     },
     utm
   })
@@ -349,6 +359,7 @@ export const recordLinkEvent = async (params: {
     eventType,
     event: {
       ...serializedEvent,
+      interactionType,
       occurredAt:
         serializedEvent.occurredAt instanceof Date
           ? serializedEvent.occurredAt.toISOString()
@@ -394,7 +405,7 @@ export const getLinkAnalytics = async (params: {
   workspaceId: string
   projectId?: string
   linkId?: string
-  interval: typeof AggregationInterval[number]
+  interval: AggregationInterval
   page?: number
   pageSize?: number
   filters?: AnalyticsFilters
@@ -403,11 +414,12 @@ export const getLinkAnalytics = async (params: {
   const pageSize = params.pageSize ?? 25
   const events = await fetchEventsForInterval({ ...params, filters: params.filters })
   const timeSeries = buildTimeSeries(events, params.interval)
+  const timeSeriesGranularity = getIntervalGranularity(params.interval)
   const offset = (page - 1) * pageSize
   const pagedEvents = events.slice(offset, offset + pageSize)
   const totalEvents = events.length
-  const totalClicks = events.filter(event => event.eventType === 'click').length
-  const totalScans = events.filter(event => event.eventType === 'scan').length
+  const totalScans = events.filter(event => getInteractionType(event) === 'scan').length
+  const totalClicks = totalEvents - totalScans
 
   const withPercentage = <T extends { total: number }>(items: Array<T & { value?: string; label?: string }>) =>
     items.map(item => ({
@@ -431,9 +443,17 @@ export const getLinkAnalytics = async (params: {
   const byBrowser = summarise('browser')
   const byLanguage = summarise('language')
   const byReferer = summarise('referer')
-  const byEventType = summarise('eventType', {
-    labelFormatter: value => (value === 'click' ? 'Clicks' : value === 'scan' ? 'Scans' : value)
+  const eventTypeBuckets = new Map<string, { value: string; label: string; total: number }>()
+  events.forEach(event => {
+    const type = getInteractionType(event)
+    const existing = eventTypeBuckets.get(type)
+    if (existing) {
+      existing.total += 1
+    } else {
+      eventTypeBuckets.set(type, { value: type, label: getInteractionLabel(type), total: 1 })
+    }
   })
+  const byEventType = withPercentage(Array.from(eventTypeBuckets.values()).sort((a, b) => b.total - a.total))
 
   const botBreakdown = withPercentage([
     { value: 'human', label: 'Humans', total: events.filter(event => !event.isBot).length },
@@ -594,6 +614,7 @@ export const getLinkAnalytics = async (params: {
     totalClicks,
     totalScans,
     timeSeries,
+    timeSeriesGranularity,
     byCountry,
     byCity,
     byContinent,
@@ -636,7 +657,7 @@ export const exportLinkAnalytics = async (
     workspaceId: string
     projectId?: string
     linkId?: string
-    interval: typeof AggregationInterval[number]
+    interval: AggregationInterval
   },
   format: 'csv' | 'json'
 ) => {

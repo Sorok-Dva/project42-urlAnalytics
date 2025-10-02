@@ -6,7 +6,7 @@ import { Workspace } from '../models/workspace'
 import { WorkspaceMember } from '../models/workspaceMember'
 import { env } from '../config/env'
 
-const tokenExpiry = '7d'
+const tokenExpiry = '30d'
 
 type JwtPayload = {
   sub: string

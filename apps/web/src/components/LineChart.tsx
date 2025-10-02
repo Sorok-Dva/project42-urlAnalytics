@@ -7,11 +7,12 @@ const numberFormatter = new Intl.NumberFormat('fr-FR')
 interface Props {
   data: AnalyticsPoint[]
   total?: number
-  granularity?: 'minute' | 'hour' | 'day' | 'month'
+  granularity?: 'second' | 'minute' | 'hour' | 'day' | 'month'
 }
 
 const formatTick = (value: string, granularity: NonNullable<Props['granularity']>) => {
   const date = dayjs(value)
+  if (granularity === 'second') return date.format('HH:mm:ss')
   switch (granularity) {
     case 'minute':
       return date.format('HH:mm')
@@ -28,6 +29,7 @@ const formatTick = (value: string, granularity: NonNullable<Props['granularity']
 
 const formatTooltipLabel = (value: string, granularity: NonNullable<Props['granularity']>) => {
   const date = dayjs(value)
+  if (granularity === 'second') return date.format('DD MMM YYYY HH:mm:ss')
   if (granularity === 'month') return date.format('MMMM YYYY')
   if (granularity === 'day') return date.format('DD MMMM YYYY')
   return date.format('DD MMM YYYY HH:mm')

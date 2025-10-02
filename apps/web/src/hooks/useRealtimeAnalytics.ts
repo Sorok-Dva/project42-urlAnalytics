@@ -8,6 +8,8 @@ interface RealtimeEvent {
   eventType: string
   event: {
     occurredAt: string
+    interactionType?: string
+    [key: string]: unknown
   }
 }
 

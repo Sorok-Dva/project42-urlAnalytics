@@ -20,7 +20,8 @@ const start = async () => {
       cors: {
         origin: env.corsOrigins.length ? env.corsOrigins : '*',
         credentials: true
-      }
+      },
+      path: '/api/socket.io'
     })
     registerAnalyticsSocket(io)
 

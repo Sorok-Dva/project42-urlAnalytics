@@ -44,7 +44,7 @@ export const env = {
   },
   webhookSecret: process.env.WEBHOOK_SECRET ?? 'whsec_dev',
   publicBaseUrl: process.env.PUBLIC_BASE_URL ?? 'http://localhost:4000',
-  defaultDomain: process.env.DEFAULT_DOMAIN ?? 'url.p-42.fr',
+  defaultDomain: process.env.DEFAULT_DOMAIN ?? 'p-42.fr',
   feature: {
     linkInBio: parseBoolean(process.env.FEATURE_LINK_IN_BIO, false),
     disableSignup: parseBoolean(process.env.FEATURE_DISABLE_SIGNUP, false)

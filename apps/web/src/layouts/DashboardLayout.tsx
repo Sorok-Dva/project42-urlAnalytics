@@ -31,12 +31,12 @@ export const DashboardLayout = () => {
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(127,90,240,0.22),_transparent_45%),radial-gradient(circle_at_bottom,_rgba(44,182,125,0.15),_transparent_40%)]" />
       <aside className="relative z-10 flex h-screen w-72 flex-col overflow-hidden border-r border-white/5 bg-white/5 backdrop-blur-xl">
         <div className="flex-shrink-0 px-6 pb-6 pt-8">
-          <div className="flex items-center gap-3">
-            <div className="rounded-full bg-accent/20 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-accent">P42</div>
-            <span className="text-sm text-slate-400">MIR-ALPHA</span>
-          </div>
           <h1 className="mt-4 text-2xl font-semibold text-white">{t('app.name')}</h1>
-          <p className="mt-2 text-xs text-slate-400">Metric Intelligence &amp; Redirection Hub</p>
+          <p className="mt-2 text-xs text-slate-400">Centre d’Analyse des Métriques et de Redirection</p>
+
+          <div className="flex items-center gap-3">
+            <div className="rounded-full bg-accent/20 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-accent">Développé par <a href="https://p-42.fr/sorok-from-deeplinks">SorokDva</a></div>
+          </div>
           {user && (
             <div className="mt-6 space-y-2 rounded-xl border border-white/10 bg-white/5 p-4 text-xs">
               <p className="font-medium text-slate-200">{user.name}</p>
@@ -85,8 +85,8 @@ export const DashboardLayout = () => {
       <main className="relative z-10 flex flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-white/5 bg-white/5 px-10 py-6 backdrop-blur-xl">
           <div>
-            <p className="text-xs uppercase tracking-[0.4em] text-accent">P42 MIR-ALPHA</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">Command Center</h2>
+            <p className="text-xs uppercase tracking-[0.4em] text-accent">Deeeplinks Analytics</p>
+            <h2 className="mt-2 text-2xl font-semibold text-white">Tableau de bord</h2>
           </div>
           <div className="flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-slate-200">
             <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_2px_rgba(16,185,129,0.5)]" />

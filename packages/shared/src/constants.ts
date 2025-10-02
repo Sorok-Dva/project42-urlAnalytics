@@ -1,4 +1,4 @@
-export const AppName = 'P42 | MIR-ALPHA'
+export const AppName = 'Deeplinks Insight'
 
 export const DefaultTheme = {
   dark: true,

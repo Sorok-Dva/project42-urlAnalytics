@@ -40,7 +40,7 @@ export const LinkDetailsPage = () => {
   })
   const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
   const { data: domains } = useQuery({ queryKey: ['domains'], queryFn: fetchDomains })
-  const fallbackDomain = import.meta.env.VITE_DEFAULT_DOMAIN ?? 'url.p-42.fr'
+  const fallbackDomain = import.meta.env.VITE_DEFAULT_DOMAIN ?? 'p-42.fr'
 
   const [form, setForm] = useState({
     originalUrl: '',

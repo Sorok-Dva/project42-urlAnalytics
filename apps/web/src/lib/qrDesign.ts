@@ -1,6 +1,33 @@
 import QRCodeStyling from 'qr-code-styling'
 import type { QrDesign } from '../types'
 
+interface QRCodeStylingOptions {
+  width: number
+  height: number
+  data: string
+  image?: string
+  dotsOptions: {
+    type: string
+    color: string
+  }
+  cornersSquareOptions: {
+    type: string
+    color: string
+  }
+  cornersDotOptions: {
+    type: string
+    color: string
+  }
+  backgroundOptions: {
+    color: string
+  }
+  imageOptions?: {
+    crossOrigin?: string
+    margin: number
+    hideBackgroundDots: boolean
+  }
+}
+
 export const DEFAULT_QR_DESIGN: QrDesign = {
   modules: 'dots-classic',
   pilotCenter: 'dot',
@@ -30,15 +57,11 @@ const pilotCenterMap: Record<QrDesign['pilotCenter'], string> = {
 }
 
 const LOGO_ASSETS: Record<string, string> = {
-  p42:
-    'data:image/svg+xml;utf8,' +
-    encodeURIComponent(
-      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="12" fill="#111827"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#F1F5F9" font-family="Inter, sans-serif" font-weight="600" font-size="18">p42</text></svg>'
-    ),
+  p42:'/assets/project42.png',
   app:
     'data:image/svg+xml;utf8,' +
     encodeURIComponent(
-      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="12" fill="#2563EB"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#F8FAFC" font-family="Inter, sans-serif" font-weight="600" font-size="18">APP</text></svg>'
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="12" fill="#2563EB"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#F8FAFC" font-family="Inter, sans-serif" font-weight="600" font-size="18">P42</text></svg>'
     )
 }
 
@@ -49,9 +72,9 @@ const buildLogoValue = (design: QrDesign) => {
   return null
 }
 
-export const buildQrOptions = (design: QrDesign, data: string, size = 320) => {
+export const buildQrOptions = (design: QrDesign, data: string, size = 320): QRCodeStylingOptions => {
   const image = buildLogoValue(design)
-  const options: any = {
+  const options: QRCodeStylingOptions = {
     width: size,
     height: size,
     data,

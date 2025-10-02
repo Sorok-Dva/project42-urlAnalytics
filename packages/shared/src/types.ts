@@ -4,8 +4,41 @@ export type WorkspaceRole = 'owner' | 'admin' | 'member' | 'viewer'
 
 export type ShortLinkStatus = 'active' | 'archived' | 'deleted'
 
-export const AggregationInterval = ['all', '1y', '3m', '1m', '1w', '1d'] as const
+export const AggregationInterval = [
+  'all',
+  '1y',
+  '3m',
+  '1m',
+  '1w',
+  '1d',
+  '12h',
+  '6h',
+  '1h',
+  '30min',
+  '15min',
+  '5min',
+  '1min'
+] as const
 export type AggregationInterval = typeof AggregationInterval[number]
+
+export const DashboardTimeRange = [
+  '1min',
+  '5min',
+  '15min',
+  '30min',
+  '1h',
+  '6h',
+  '12h',
+  '24h',
+  '7d',
+  '14d',
+  '1mo',
+  '3mo',
+  '6mo',
+  '1y',
+  'all'
+] as const
+export type DashboardTimeRange = typeof DashboardTimeRange[number]
 
 export interface GeoRule {
   id: string
@@ -112,6 +145,7 @@ export interface AnalyticsAggregation {
   totalClicks: number
   totalScans: number
   timeSeries?: AnalyticsPoint[]
+  timeSeriesGranularity?: 'second' | 'minute' | 'hour' | 'day' | 'month'
   byCountry?: Array<AnalyticsBreakdownItem & { code?: string | null }>
   byCity?: AnalyticsBreakdownItem[]
   byContinent?: AnalyticsBreakdownItem[]
@@ -137,6 +171,7 @@ export interface AnalyticsAggregation {
     id: string
     linkId?: string
     eventType?: 'click' | 'scan'
+    interactionType?: 'click' | 'scan' | 'direct' | 'api' | 'bot'
     device?: string | null
     os?: string | null
     browser?: string | null

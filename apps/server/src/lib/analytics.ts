@@ -1,25 +1,48 @@
 import { Op } from 'sequelize'
-import { subDays, subMonths, subYears, isAfter, formatISO } from 'date-fns'
+import { subDays, subMonths, subYears } from 'date-fns'
 import { LinkEvent } from '../models/linkEvent'
 import { AggregationInterval, type AnalyticsFilters } from '@p42/shared'
+import { getInteractionType } from './interactionType'
 
-const intervalToStart = (interval: string) => {
-  const now = new Date()
-  switch (interval) {
-    case '1d':
-      return subDays(now, 1)
-    case '1w':
-      return subDays(now, 7)
-    case '1m':
-      return subMonths(now, 1)
-    case '3m':
-      return subMonths(now, 3)
-    case '1y':
-      return subYears(now, 1)
-    default:
-      return subYears(now, 10)
-  }
+type IntervalConfig = {
+  durationMs?: number
+  bucketMs: number
+  granularity: 'second' | 'minute' | 'hour' | 'day' | 'month'
 }
+
+const MINUTE = 60 * 1000
+const HOUR = 60 * MINUTE
+const DAY = 24 * HOUR
+
+const ANALYTICS_INTERVAL_CONFIG: Record<AggregationInterval, IntervalConfig> = {
+  all: { bucketMs: 30 * DAY, granularity: 'month' },
+  '1y': { durationMs: 365 * DAY, bucketMs: 7 * DAY, granularity: 'day' },
+  '3m': { durationMs: 90 * DAY, bucketMs: 3 * DAY, granularity: 'day' },
+  '1m': { durationMs: 30 * DAY, bucketMs: DAY, granularity: 'day' },
+  '1w': { durationMs: 7 * DAY, bucketMs: 12 * HOUR, granularity: 'hour' },
+  '1d': { durationMs: DAY, bucketMs: HOUR, granularity: 'hour' },
+  '12h': { durationMs: 12 * HOUR, bucketMs: HOUR, granularity: 'hour' },
+  '6h': { durationMs: 6 * HOUR, bucketMs: 30 * MINUTE, granularity: 'minute' },
+  '1h': { durationMs: HOUR, bucketMs: MINUTE, granularity: 'minute' },
+  '30min': { durationMs: 30 * MINUTE, bucketMs: 30 * 1000, granularity: 'second' },
+  '15min': { durationMs: 15 * MINUTE, bucketMs: 15 * 1000, granularity: 'second' },
+  '5min': { durationMs: 5 * MINUTE, bucketMs: 5 * 1000, granularity: 'second' },
+  '1min': { durationMs: MINUTE, bucketMs: 1_000, granularity: 'second' }
+}
+
+const getIntervalConfig = (interval: AggregationInterval): IntervalConfig => {
+  return ANALYTICS_INTERVAL_CONFIG[interval] ?? ANALYTICS_INTERVAL_CONFIG['1m']
+}
+
+const intervalToStart = (interval: AggregationInterval) => {
+  const config = getIntervalConfig(interval)
+  if (config.durationMs) {
+    return new Date(Date.now() - config.durationMs)
+  }
+  return subYears(new Date(), 10)
+}
+
+const alignToBucket = (timestamp: number, bucketMs: number) => Math.floor(timestamp / bucketMs) * bucketMs
 
 const UNKNOWN_VALUE = 'unknown'
 
@@ -62,7 +85,7 @@ const matchesUtmFilter = (
 const applyEventFilters = (events: LinkEvent[], filters?: AnalyticsFilters) => {
   if (!filters) return events
   return events.filter(event => {
-    if (!matchesStringFilter(event.eventType, filters.eventType)) return false
+    if (!matchesStringFilter(getInteractionType(event), filters.eventType)) return false
     if (!matchesStringFilter(event.device, filters.device)) return false
     if (!matchesStringFilter(event.os, filters.os)) return false
     if (!matchesStringFilter(event.browser, filters.browser)) return false
@@ -85,7 +108,7 @@ export const fetchEventsForInterval = async (filters: {
   workspaceId: string
   projectId?: string
   linkId?: string
-  interval: typeof AggregationInterval[number]
+  interval: AggregationInterval
   page?: number
   pageSize?: number
   filters?: AnalyticsFilters
@@ -102,37 +125,33 @@ export const fetchEventsForInterval = async (filters: {
   return applyEventFilters(events, filters.filters)
 }
 
-const increment = (
-  bucket: Map<string, number>,
-  key: string,
-  amount: number
-) => {
-  const current = bucket.get(key) ?? 0
-  bucket.set(key, current + amount)
-}
+export const buildTimeSeries = (events: LinkEvent[], interval: AggregationInterval) => {
+  const config = getIntervalConfig(interval)
+  const bucketMs = config.bucketMs
+  const now = new Date()
+  const alignedEnd = alignToBucket(now.getTime(), bucketMs)
 
-const floorDateKey = (date: Date, interval: string) => {
-  switch (interval) {
-    case '1d':
-      return formatISO(new Date(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours()))
-    case '1w':
-    case '1m':
-    case '3m':
-    case '1y':
-    default:
-      return formatISO(new Date(date.getFullYear(), date.getMonth(), date.getDate()))
+  const rawStart = intervalToStart(interval)
+  const alignedStart = alignToBucket(rawStart.getTime(), bucketMs)
+
+  const timestamps = events
+    .map(event => (event.occurredAt instanceof Date ? event.occurredAt.getTime() : new Date(event.occurredAt).getTime()))
+    .sort((a, b) => a - b)
+
+  const series: Array<{ timestamp: string; total: number }> = []
+  let index = 0
+
+  for (let cursor = alignedStart; cursor <= alignedEnd; cursor += bucketMs) {
+    const bucketEnd = cursor + bucketMs
+    let total = 0
+    while (index < timestamps.length && timestamps[index] < bucketEnd) {
+      total += 1
+      index += 1
+    }
+    series.push({ timestamp: new Date(cursor).toISOString(), total })
   }
-}
 
-export const buildTimeSeries = (events: LinkEvent[], interval: string) => {
-  const buckets = new Map<string, number>()
-  events.forEach(event => {
-    const key = floorDateKey(event.occurredAt, interval)
-    increment(buckets, key, 1)
-  })
-  return Array.from(buckets.entries())
-    .sort((a, b) => (isAfter(new Date(a[0]), new Date(b[0])) ? 1 : -1))
-    .map(([timestamp, total]) => ({ timestamp, total }))
+  return series
 }
 
 export const summarizeByDimension = (
@@ -180,6 +199,9 @@ export const buildEventsFlow = (events: LinkEvent[]) => {
     isBot: event.isBot,
     occurredAt: event.occurredAt,
     utm: event.utm,
-    metadata: event.metadata
+    metadata: event.metadata,
+    interactionType: getInteractionType(event)
   }))
 }
+
+export const getIntervalGranularity = (interval: AggregationInterval) => getIntervalConfig(interval).granularity

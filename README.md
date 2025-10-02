@@ -1,11 +1,11 @@
-# P42 | MIR-ALPHA URL Manager
+# Deeplinks Insight URL Manager
 
 P42-urlManager est une plate-forme mono-repo complète pour créer, gérer et analyser des liens courts avec génération de QR codes et analytics temps réel. Le système inclut un backend Node.js/Express/Sequelize, un frontend React/Vite/Tailwind, des scripts pnpm, une base MySQL, des conteneurs Docker et un pipeline CI.
 
 ## Architecture
 
 - **apps/server** – API REST (TypeScript, Express, Sequelize, Socket.IO) avec migrations Umzug, seed de démonstration, webhooks et redirection ultra-rapide (cache mémoire).
-- **apps/web** – Interface React + Vite + Tailwind, thème « P42 | MIR-ALPHA », mode sombre, i18n fr/en, analytics temps réel via Socket.IO, checklist onboarding, modules statistiques complets.
+- **apps/web** – Interface React + Vite + Tailwind, thème « Deeplinks Insight », mode sombre, i18n fr/en, analytics temps réel via Socket.IO, checklist onboarding, modules statistiques complets.
 - **packages/shared** – Types, schémas Zod, constantes et feature flags partagés.
 - **Docker** – Images distinctes pour le serveur (Node) et le frontend (Nginx), orchestration docker-compose avec MySQL.
 - **CI** – GitHub Action `ci.yml` (pnpm install, build, tests server/web, lint).
@@ -56,7 +56,7 @@ FEATURE_LINK_IN_BIO=false
 Pour le frontend (`apps/web/.env.example`) :
 ```
 VITE_API_URL=http://localhost:4000
-VITE_APP_NAME="P42 | MIR-ALPHA"
+VITE_APP_NAME="Deeplinks Insight"
 VITE_PUBLIC_BASE_URL=http://localhost:4000
 ```
 
@@ -125,4 +125,4 @@ Les workspaces stockent `planLimits` (JSON) pour contrôler liens, QR codes et m
 
 ---
 
-**P42 | MIR-ALPHA** – MIR-ALPHA Metric Intelligence & Redirection.
+**Deeplinks Insight** – MIR-ALPHA Metric Intelligence & Redirection.

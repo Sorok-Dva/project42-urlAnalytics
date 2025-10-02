@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import type { AggregationInterval } from '@p42/shared'
+import type { DashboardTimeRange } from '@p42/shared'
 import { fetchOverview } from '../api/dashboard'
 import { MetricCard } from '../components/MetricCard'
 import { LineChart } from '../components/LineChart'
@@ -15,6 +15,7 @@ import { useAuth } from '../stores/auth'
 import { useRealtimeAnalytics } from '../hooks/useRealtimeAnalytics'
 import dayjs from '../lib/dayjs'
 import { Link2, QrCode, BarChart3, ArrowRight } from 'lucide-react'
+import { ApiError } from '../lib/apiError'
 
 const onboardingSteps = [
   'Connect your first domain',
@@ -23,78 +24,89 @@ const onboardingSteps = [
   'Generate a branded QR code'
 ]
 
-const intervalToDays: Record<AggregationInterval, number> = {
-  all: 9999,
-  '1y': 365,
-  '3m': 90,
-  '1m': 30,
-  '1w': 7,
-  '1d': 1
+type ChartGranularity = 'second' | 'minute' | 'hour' | 'day' | 'month'
+
+interface OverviewResponse {
+  metrics: {
+    numberOfLinks: number
+    totalClicks: number
+  }
+  range: DashboardTimeRange
+  recentClicks: Array<{ timestamp: string; total: number }>
+  recentClicksGranularity?: ChartGranularity
+  events?: Array<{
+    id: string
+    eventType?: string
+    interactionType?: string
+    linkId?: string
+    projectId?: string
+    device?: string | null
+    country?: string | null
+    referer?: string | null
+    occurredAt: string
+  }>
+}
+
+const formatInteractionLabel = (value: string) => {
+  switch (value) {
+    case 'scan':
+      return 'Scan'
+    case 'direct':
+      return 'Direct'
+    case 'api':
+      return 'API'
+    case 'bot':
+      return 'Bot'
+    case 'click':
+      return 'Click'
+    default:
+      return value.charAt(0).toUpperCase() + value.slice(1)
+  }
+}
+
+const getInteractionTone = (value: string): 'neutral' | 'success' | 'warning' | 'danger' => {
+  if (value === 'scan') return 'warning'
+  if (value === 'bot') return 'danger'
+  if (value === 'api') return 'neutral'
+  if (value === 'direct' || value === 'click') return 'success'
+  return 'neutral'
 }
 
 export const HomePage = () => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { workspaceId } = useAuth()
-  const [interval, setInterval] = useState<AggregationInterval>('1m')
+  const { token, workspaceId, logout } = useAuth()
+  const [range, setRange] = useState<DashboardTimeRange>('7d')
 
-  const { data, isLoading } = useQuery({ queryKey: ['overview'], queryFn: fetchOverview })
+  const queryEnabled = Boolean(token)
 
-  useRealtimeAnalytics(workspaceId ? [`workspace:${workspaceId}`] : [], event => {
-    queryClient.setQueryData(['overview'], (previous: any) => {
-      if (!previous) return previous
+  const rooms = useMemo(() => (workspaceId ? [`workspace:${workspaceId}`] : []), [workspaceId])
 
-      const metrics = {
-        ...previous.metrics,
-        totalClicks: (previous.metrics?.totalClicks ?? 0) + 1
-      }
-
-      const occurredAt = dayjs(event.event.occurredAt)
-      const dayKey = occurredAt.startOf('day').toISOString()
-      const recentClicks = Array.isArray(previous.recentClicks) ? [...previous.recentClicks] : []
-      const existingIndex = recentClicks.findIndex((point: { timestamp: string }) =>
-        dayjs(point.timestamp).isSame(dayKey, 'day')
-      )
-      if (existingIndex >= 0) {
-        const current = recentClicks[existingIndex]
-        recentClicks[existingIndex] = { ...current, total: (current.total ?? 0) + 1 }
-      } else {
-        recentClicks.push({ timestamp: dayKey, total: 1 })
-      }
-      recentClicks.sort((a: { timestamp: string }, b: { timestamp: string }) =>
-        dayjs(a.timestamp).valueOf() - dayjs(b.timestamp).valueOf()
-      )
-
-      const nextEvents = [
-        {
-          ...event.event,
-          eventType: event.eventType,
-          linkId: event.linkId,
-          projectId: event.projectId
-        },
-        ...(previous.events ?? [])
-      ].slice(0, 20)
-
-      return {
-        ...previous,
-        metrics,
-        recentClicks,
-        events: nextEvents
-      }
-    })
+  const { data, isLoading, isFetching, error } = useQuery<OverviewResponse, ApiError>({
+    queryKey: ['overview', range],
+    queryFn: () => fetchOverview(range),
+    enabled: queryEnabled,
+    retry: false
   })
 
-  const chartData = useMemo(() => {
-    if (!data?.recentClicks) return [] as Array<{ timestamp: string; total: number }>
-    const days = intervalToDays[interval]
-    if (interval === 'all') return data.recentClicks
-    return data.recentClicks.filter((point: { timestamp: string; total: number }) =>
-      dayjs(point.timestamp).isAfter(dayjs().subtract(days, 'day'))
-    )
-  }, [data, interval])
+  useEffect(() => {
+    if (error?.status === 401) {
+      logout()
+      queryClient.removeQueries({ queryKey: ['overview'] })
+    }
+  }, [error, logout, queryClient])
 
-  if (isLoading) {
+  const invalidateOverview = useCallback(() => {
+    if (!queryEnabled) return
+    queryClient.invalidateQueries({ queryKey: ['overview', range] })
+  }, [queryClient, range, queryEnabled])
+
+  useRealtimeAnalytics(queryEnabled ? rooms : [], invalidateOverview)
+
+  const loading = (!queryEnabled && !data) || (queryEnabled && (isLoading || isFetching))
+
+  if (loading && !data) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-24" />
@@ -104,10 +116,15 @@ export const HomePage = () => {
     )
   }
 
+  const chartData = Array.isArray(data?.recentClicks) ? data.recentClicks : []
+  const granularity: ChartGranularity = data?.recentClicksGranularity ?? 'minute'
+  const rangeTotal = chartData.reduce((sum, point) => sum + point.total, 0)
+  const recentEvents = data?.events ?? []
+
   if (!data) {
     return (
       <EmptyState
-        title="Bienvenue sur MIR-ALPHA"
+        title="Bienvenue sur Deeplinks Insight"
         description="Commencez par créer votre premier lien court pour alimenter les analytics en temps réel."
         action={
           <button
@@ -121,8 +138,6 @@ export const HomePage = () => {
     )
   }
 
-  const recentEvents = data.events ?? []
-
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -130,7 +145,7 @@ export const HomePage = () => {
           <h2 className="text-3xl font-semibold text-slate-100">{t('home.welcome')}</h2>
           <p className="text-sm text-slate-400">Monitor the pulse of your links in real time.</p>
         </div>
-        <IntervalSelector value={interval} onChange={setInterval} />
+        <IntervalSelector value={range} onChange={setRange} />
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
@@ -138,7 +153,7 @@ export const HomePage = () => {
         <MetricCard label={t('home.totalClicks')} value={data.metrics?.totalClicks ?? 0} />
         <MetricCard
           label={t('home.recentClicks')}
-          value={chartData.at(-1)?.total ?? 0}
+          value={rangeTotal}
           action={
             <button
               onClick={() => navigate('/statistics')}
@@ -220,26 +235,30 @@ export const HomePage = () => {
         description="Trafic consolidé sur la période sélectionnée"
         actions={<span className="text-xs text-slate-500">Realtime socket feed</span>}
       >
-        <LineChart data={chartData} />
+        <LineChart data={chartData} granularity={granularity} total={rangeTotal} />
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title="Pulse feed" description="Derniers événements enregistrés">
           <div className="max-h-80 space-y-3 overflow-y-auto pr-2">
             {recentEvents.length === 0 && <p className="text-sm text-slate-400">Aucun événement pour le moment.</p>}
-            {recentEvents.map((event: any) => (
-              <div key={event.id} className="flex items-center justify-between rounded-xl border border-slate-800/60 bg-slate-900/60 px-4 py-3 shadow-sm">
-                <div>
-                  <StatusBadge label={event.eventType ?? 'event'} tone={event.eventType === 'scan' ? 'warning' : 'success'} />
-                  <p className="mt-2 text-sm text-slate-200">{event.linkId?.slice(0, 6) ?? 'link'} • {event.device ?? 'unknown device'}</p>
-                  <p className="text-xs text-slate-500">{event.country ?? '??'} • {event.referer ?? 'direct'}</p>
+            {recentEvents.map(event => {
+              const rawType = (event.interactionType ?? event.eventType ?? 'event').toLowerCase()
+              const badgeTone = getInteractionTone(rawType)
+              return (
+                <div key={event.id} className="flex items-center justify-between rounded-xl border border-slate-800/60 bg-slate-900/60 px-4 py-3 shadow-sm">
+                  <div>
+                    <StatusBadge label={formatInteractionLabel(rawType)} tone={badgeTone} />
+                    <p className="mt-2 text-sm text-slate-200">{event.linkId?.slice(0, 6) ?? 'link'} • {event.device ?? 'unknown device'}</p>
+                    <p className="text-xs text-slate-500">{event.country ?? '??'} • {event.referer ?? 'direct'}</p>
+                  </div>
+                  <span className="text-xs text-slate-400">{dayjs(event.occurredAt).fromNow()}</span>
                 </div>
-                <span className="text-xs text-slate-400">{dayjs(event.occurredAt).fromNow()}</span>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </Card>
-        <Card title={t('home.onboarding')} description="Suivez votre checklist MIR-ALPHA">
+        <Card title={t('home.onboarding')} description="Suivez votre checklist">
           <ul className="space-y-3">
             {onboardingSteps.map(step => (
               <li key={step} className="flex items-center gap-3 rounded-xl border border-slate-800/70 bg-slate-900/60 px-4 py-3">
