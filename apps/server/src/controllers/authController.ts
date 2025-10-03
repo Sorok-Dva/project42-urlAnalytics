@@ -17,6 +17,7 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
 export const login = asyncHandler(async (req: Request, res: Response) => {
   const { email, password, workspaceId } = req.body
   const user = await authenticateUser({ email, password })
+  await user.update({ lastLoginAt: new Date() })
   const memberships = await WorkspaceMember.findAll({ where: { userId: user.id } })
   const targetWorkspaceId = workspaceId ?? memberships[0]?.workspaceId
   if (!targetWorkspaceId) {

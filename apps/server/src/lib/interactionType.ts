@@ -25,7 +25,7 @@ const KNOWN_TYPES = new Set<InteractionType>(['click', 'scan', 'direct', 'api', 
 const normalizeString = (value?: string | null) => value?.trim().toLowerCase() ?? ''
 
 export const resolveInteractionType = (input: {
-  eventType: 'click' | 'scan'
+  eventType: InteractionType
   referer?: string | null
   isBot?: boolean
   userAgent?: string | null
@@ -39,6 +39,9 @@ export const resolveInteractionType = (input: {
     return rawMetadataType as InteractionType
   }
 
+  if (input.eventType !== 'click' && input.eventType !== 'scan' && KNOWN_TYPES.has(input.eventType)) {
+    return input.eventType
+  }
   if (input.eventType === 'scan') return 'scan'
   if (input.isBot) return 'bot'
 

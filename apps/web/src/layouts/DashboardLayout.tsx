@@ -34,13 +34,10 @@ export const DashboardLayout = () => {
           <img
             src="/logo192.png"
             alt={t('app.name')}
-            className="mt-4 h-12 w-auto drop-shadow-[0_8px_20px_rgba(127,90,240,0.35)]"
+            className="mt-[-10vh] h-auto drop-shadow-[0_8px_20px_rgba(127,90,240,0.35)]"
           />
-          <p className="mt-2 text-xs text-slate-400">Centre d’Analyse des Métriques et de Redirection</p>
+          <h3 className="mt-[-7vh] text-xs text-slate-400">Centre d’Analyse des Métriques et de Redirection</h3>
 
-          <div className="flex items-center gap-3">
-            <div className="rounded-full bg-accent/20 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-accent">Développé par <a href="https://p-42.fr/sorok-from-deeplinks">SorokDva</a></div>
-          </div>
           {user && (
             <div className="mt-6 space-y-2 rounded-xl border border-white/10 bg-white/5 p-4 text-xs">
               <p className="font-medium text-slate-200">{user.name}</p>
@@ -71,7 +68,7 @@ export const DashboardLayout = () => {
             </NavLink>
           ))}
         </nav>
-        <div className="flex-shrink-0 space-y-3 px-4 pb-8 pt-4">
+        <div className="flex-shrink-0 space-y-3 px-4 pb-4 pt-4">
           <button
             onClick={toggle}
             className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/10"
@@ -84,6 +81,9 @@ export const DashboardLayout = () => {
           >
             {t('nav.logout')}
           </button>
+          <div className="mt-2 ml-4 flex items-center gap-3">
+            <div className="rounded-full bg-accent/20 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-accent">Développé par <a href="https://p-42.fr/sorok-from-deeplinks">SorokDva</a></div>
+          </div>
         </div>
       </aside>
       <main className="relative z-10 flex h-full flex-1 flex-col overflow-hidden">

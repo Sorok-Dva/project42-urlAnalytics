@@ -7,7 +7,7 @@ type AnalyticsEventPayload = {
   linkId: string
   projectId: string | null
   workspaceId: string
-  eventType: 'click' | 'scan'
+  eventType: InteractionType
   event: {
     id: string
     occurredAt: string

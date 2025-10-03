@@ -304,6 +304,7 @@ export const recordLinkEvent = async (params: {
   const { device, os, browser } = parseUserAgent(userAgent)
   const isBot = isBotUserAgent(userAgent)
   const interactionType = resolveInteractionType({ eventType, referer, isBot, userAgent })
+  const persistedEventType = interactionType
   const geo = mergeGeoResults(ip ? await resolveGeo(ip) : null, geoOverride)
   const geoRedirect = evaluateGeoRules(link, geo.country, geo.continent)
   const respectsDnt = Boolean(doNotTrack)
@@ -327,7 +328,7 @@ export const recordLinkEvent = async (params: {
     workspaceId: link.workspaceId,
     projectId: link.projectId,
     linkId: link.id,
-    eventType,
+    eventType: persistedEventType,
     referer: referer ?? null,
     device,
     os,
@@ -346,7 +347,8 @@ export const recordLinkEvent = async (params: {
       redirectTo: targetUrl,
       domain: params.domain,
       interactionType,
-      doNotTrack: respectsDnt
+      doNotTrack: respectsDnt,
+      baseEventType: eventType
     },
     utm
   })
@@ -359,7 +361,7 @@ export const recordLinkEvent = async (params: {
     linkId: link.id,
     projectId: link.projectId,
     workspaceId: link.workspaceId,
-    eventType,
+    eventType: persistedEventType,
     event: {
       ...serializedEvent,
       interactionType,

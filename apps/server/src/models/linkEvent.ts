@@ -1,12 +1,14 @@
 import { DataTypes, Model, Optional } from 'sequelize'
 import { sequelize } from '../config/database'
 
+export type LinkEventType = 'click' | 'scan' | 'direct' | 'api' | 'bot'
+
 export interface LinkEventAttributes {
   id: string
   workspaceId: string
   projectId: string | null
   linkId: string
-  eventType: 'click' | 'scan'
+  eventType: LinkEventType
   referer: string | null
   device: string | null
   os: string | null
@@ -56,7 +58,7 @@ export class LinkEvent
   declare workspaceId: string
   declare projectId: string | null
   declare linkId: string
-  declare eventType: 'click' | 'scan'
+  declare eventType: LinkEventType
   declare referer: string | null
   declare device: string | null
   declare os: string | null
@@ -97,7 +99,7 @@ LinkEvent.init(
       allowNull: false
     },
     eventType: {
-      type: DataTypes.ENUM('click', 'scan'),
+      type: DataTypes.ENUM('click', 'scan', 'direct', 'api', 'bot'),
       allowNull: false
     },
     referer: {

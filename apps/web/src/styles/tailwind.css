@@ -25,3 +25,9 @@ body {
   line-height: 1.1rem;
   color: #0f172a !important;
 }
+
+.recharts-default-tooltip,
+.recharts-tooltip-item {
+  color: #f8fafc !important;
+  fill: #f8fafc !important;
+}

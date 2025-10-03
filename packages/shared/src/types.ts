@@ -58,7 +58,7 @@ export interface LinkAnalyticsEvent {
   id: string
   linkId: string
   projectId: string
-  eventType: 'click' | 'scan'
+  eventType: 'click' | 'scan' | 'direct' | 'api' | 'bot'
   device: string
   os: string
   browser: string
@@ -170,7 +170,7 @@ export interface AnalyticsAggregation {
   eventsFlow?: Array<{
     id: string
     linkId?: string
-    eventType?: 'click' | 'scan'
+    eventType?: 'click' | 'scan' | 'direct' | 'api' | 'bot'
     interactionType?: 'click' | 'scan' | 'direct' | 'api' | 'bot'
     device?: string | null
     os?: string | null
