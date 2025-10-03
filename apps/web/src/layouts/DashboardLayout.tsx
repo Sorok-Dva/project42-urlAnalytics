@@ -31,7 +31,11 @@ export const DashboardLayout = () => {
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(127,90,240,0.22),_transparent_45%),radial-gradient(circle_at_bottom,_rgba(44,182,125,0.15),_transparent_40%)]" />
       <aside className="relative z-10 flex h-screen w-72 flex-col overflow-hidden border-r border-white/5 bg-white/5 backdrop-blur-xl">
         <div className="flex-shrink-0 px-6 pb-6 pt-8">
-          <h1 className="mt-4 text-2xl font-semibold text-white">{t('app.name')}</h1>
+          <img
+            src="/logo192.png"
+            alt={t('app.name')}
+            className="mt-4 h-12 w-auto drop-shadow-[0_8px_20px_rgba(127,90,240,0.35)]"
+          />
           <p className="mt-2 text-xs text-slate-400">Centre d’Analyse des Métriques et de Redirection</p>
 
           <div className="flex items-center gap-3">

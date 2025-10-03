@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import { WebServiceClient } from '@maxmind/geoip2-node'
+import geoip from 'geoip-lite'
 import type { IncomingHttpHeaders } from 'http'
 import { env } from '../config/env'
 
@@ -28,41 +29,13 @@ const getClient = () => {
   return client
 }
 
-export const resolveGeo = async (ip: string): Promise<GeoResult> => {
-  const mmClient = getClient()
-  if (!mmClient) {
-    return { ...emptyGeoResult }
-  }
+const isIpv4MappedIpv6 = (input: string) => input.startsWith('::ffff:')
 
-  try {
-    const response = await mmClient.city(ip)
-    return {
-      country: response.country?.isoCode ?? null,
-      city: response.city?.names?.en ?? null,
-      continent: response.continent?.code ?? null,
-      latitude: response.location?.latitude ?? null,
-      longitude: response.location?.longitude ?? null
-    }
-  } catch (error) {
-    return { ...emptyGeoResult }
-  }
-}
-
-export const hashIp = (ip: string | undefined) => {
-  if (!ip) return null
-  return crypto.createHash('sha256').update(ip).digest('hex')
-}
-
-const headerValueToString = (value: string | string[] | undefined): string | null => {
-  if (!value) return null
-  return Array.isArray(value) ? value[0]?.trim() ?? null : value.trim() || null
-}
-
-const headerValueToNumber = (value: string | string[] | undefined): number | null => {
-  const stringValue = headerValueToString(value)
-  if (!stringValue) return null
-  const parsed = Number(stringValue)
-  return Number.isFinite(parsed) ? parsed : null
+const normalizeIpForLookup = (ip: string) => {
+  if (!ip) return ip
+  const trimmed = ip.trim()
+  if (isIpv4MappedIpv6(trimmed)) return trimmed.slice(7)
+  return trimmed
 }
 
 const countryToContinentMap: Record<string, string> = {
@@ -97,6 +70,66 @@ const inferContinent = (country: string | null): string | null => {
   if (!country) return null
   const normalized = country.trim().toUpperCase()
   return countryToContinentMap[normalized] ?? null
+}
+
+function geoLiteLookup(ip: string): GeoResult | null {
+  try {
+    const result = geoip.lookup(normalizeIpForLookup(ip))
+    if (!result) return null
+    const [lat, lon] = result.ll ?? []
+    const latitude = typeof lat === 'number' ? lat : null
+    const longitude = typeof lon === 'number' ? lon : null
+
+    return {
+      country: result.country ?? null,
+      city: result.city ?? null,
+      continent: inferContinent(result.country ?? null),
+      latitude,
+      longitude
+    }
+  } catch (error) {
+    return null
+  }
+}
+
+export const resolveGeo = async (ip: string): Promise<GeoResult> => {
+  const normalizedIp = normalizeIpForLookup(ip)
+  const fallback = () => geoLiteLookup(normalizedIp) ?? { ...emptyGeoResult }
+
+  const mmClient = getClient()
+  if (!mmClient) {
+    return fallback()
+  }
+
+  try {
+    const response = await mmClient.city(normalizedIp)
+    return {
+      country: response.country?.isoCode ?? null,
+      city: response.city?.names?.en ?? null,
+      continent: response.continent?.code ?? null,
+      latitude: response.location?.latitude ?? null,
+      longitude: response.location?.longitude ?? null
+    }
+  } catch (error) {
+    return fallback()
+  }
+}
+
+export const hashIp = (ip: string | undefined) => {
+  if (!ip) return null
+  return crypto.createHash('sha256').update(ip).digest('hex')
+}
+
+const headerValueToString = (value: string | string[] | undefined): string | null => {
+  if (!value) return null
+  return Array.isArray(value) ? value[0]?.trim() ?? null : value.trim() || null
+}
+
+const headerValueToNumber = (value: string | string[] | undefined): number | null => {
+  const stringValue = headerValueToString(value)
+  if (!stringValue) return null
+  const parsed = Number(stringValue)
+  return Number.isFinite(parsed) ? parsed : null
 }
 
 export const geoFromCloudflareHeaders = (headers: IncomingHttpHeaders): Partial<GeoResult> | null => {
