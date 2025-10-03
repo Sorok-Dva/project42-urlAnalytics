@@ -306,9 +306,11 @@ export const recordLinkEvent = async (params: {
   const interactionType = resolveInteractionType({ eventType, referer, isBot, userAgent })
   const geo = mergeGeoResults(ip ? await resolveGeo(ip) : null, geoOverride)
   const geoRedirect = evaluateGeoRules(link, geo.country, geo.continent)
+  const respectsDnt = Boolean(doNotTrack)
   const ipHash = hashIp(ip)
   const fingerprint = ipHash ? `${link.id}:${ipHash}:${eventType}:${browser}:${new Date().getMinutes()}` : null
-  const utm = extractUtmFromQuery(query) ?? (link.utm ?? null)
+  const defaultUtm = link.utm ?? null
+  const utm = extractUtmFromQuery(query) ?? defaultUtm
 
   const targetUrl = (() => {
     if (hasExpired(link)) return handleExpirationRedirect(link)
@@ -316,7 +318,7 @@ export const recordLinkEvent = async (params: {
     return link.originalUrl
   })()
 
-  if (doNotTrack || isBot || (fingerprint && isDuplicateEvent(fingerprint))) {
+  if (isBot || (fingerprint && isDuplicateEvent(fingerprint))) {
     if (fingerprint && !isDuplicateEvent(fingerprint)) registerEventFingerprint(fingerprint)
     return { targetUrl, event: null }
   }
@@ -343,7 +345,8 @@ export const recordLinkEvent = async (params: {
     metadata: {
       redirectTo: targetUrl,
       domain: params.domain,
-      interactionType
+      interactionType,
+      doNotTrack: respectsDnt
     },
     utm
   })
