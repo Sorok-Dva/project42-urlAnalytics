@@ -83,7 +83,8 @@ export const BreakdownCard = ({
             dataKey="percentage"
             position="right"
             formatter={(value: number) => `${value.toFixed(1)}%`}
-            className="fill-slate-200 text-[11px]"
+            fill="#e2e8f0"
+            fontSize={11}
           />
         </Bar>
       </BarChart>

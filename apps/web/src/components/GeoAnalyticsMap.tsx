@@ -33,14 +33,15 @@ const CITY_GRADIENT_STEPS = [
 
 const MIN_MAP_ZOOM = 2
 const MAX_MAP_ZOOM = 10
-const MIN_CITY_RADIUS_METERS = 5_000 // 5 km at max zoom
-const MAX_CITY_RADIUS_METERS = 75_000 // 75 km at min zoom
+const MIN_CITY_RADIUS_METERS = 3_000 // 3 km at max zoom per product feedback
+const MAX_CITY_RADIUS_METERS = 75_000 // 75 km when fully zoomed out
 
 const ZOOM_RADIUS_STOPS: Array<{ zoom: number; radius: number }> = [
   { zoom: MIN_MAP_ZOOM, radius: MAX_CITY_RADIUS_METERS },
-  { zoom: 3.5, radius: 45_000 },
-  { zoom: 5, radius: 20_000 },
-  { zoom: 6, radius: 15_000 },
+  { zoom: 4, radius: 55_000 },
+  { zoom: 5, radius: 50_000 },
+  { zoom: 6.5, radius: 18_000 },
+  { zoom: 8, radius: 8_000 },
   { zoom: MAX_MAP_ZOOM, radius: MIN_CITY_RADIUS_METERS }
 ]
 
@@ -149,9 +150,9 @@ export const GeoAnalyticsMap = ({ countries, cities, totalEvents }: GeoAnalytics
   const buildCountryInfo = useCallback(
     (country: AnalyticsGeoCountry) =>
       [
-        `<div class="font-semibold text-slate-100">${country.label}</div>`,
-        `<div class="mt-1 text-xs text-slate-200">${formatNumber(country.total)} interactions</div>`,
-        `<div class="text-[11px] text-slate-400">${country.percentage.toFixed(1)}% des hits localisés</div>`
+        `<div class="font-semibold text-slate-900">${country.label}</div>`,
+        `<div class="mt-1 text-xs text-slate-700">${formatNumber(country.total)} interactions</div>`,
+        `<div class="text-[11px] text-slate-500">${country.percentage.toFixed(1)}% des hits localisés</div>`
       ].join(''),
     [formatNumber]
   )
@@ -159,10 +160,10 @@ export const GeoAnalyticsMap = ({ countries, cities, totalEvents }: GeoAnalytics
   const buildCityInfo = useCallback(
     (city: AnalyticsGeoCity) =>
       [
-        `<div class="font-semibold text-slate-100">${city.label}</div>`,
-        city.country ? `<div class="text-xs text-slate-300">${city.country}</div>` : '',
-        `<div class="mt-1 text-xs text-slate-200">${formatNumber(city.total)} interactions</div>`,
-        `<div class="text-[11px] text-slate-400">${city.percentage.toFixed(1)}% des hits localisés</div>`
+        `<div class="font-semibold text-slate-900">${city.label}</div>`,
+        city.country ? `<div class="text-xs text-slate-600">${city.country}</div>` : '',
+        `<div class="mt-1 text-xs text-slate-700">${formatNumber(city.total)} interactions</div>`,
+        `<div class="text-[11px] text-slate-500">${city.percentage.toFixed(1)}% des hits localisés</div>`
       ]
         .filter(Boolean)
         .join(''),
@@ -281,9 +282,9 @@ export const GeoAnalyticsMap = ({ countries, cities, totalEvents }: GeoAnalytics
 
     const tooltipContent = (city: AnalyticsGeoCity) => {
       return [
-        `<div class="font-medium text-slate-100">${city.label}</div>`,
-        `<div class="text-slate-200">${city.total.toLocaleString('fr-FR')} hits (${city.percentage.toFixed(1)}%)</div>`,
-        city.country ? `<div class="text-slate-400">${city.country}</div>` : ''
+        `<div class="font-medium text-slate-900">${city.label}</div>`,
+        `<div class="text-slate-700">${city.total.toLocaleString('fr-FR')} hits (${city.percentage.toFixed(1)}%)</div>`,
+        city.country ? `<div class="text-slate-600">${city.country}</div>` : ''
       ]
         .filter(Boolean)
         .join('')

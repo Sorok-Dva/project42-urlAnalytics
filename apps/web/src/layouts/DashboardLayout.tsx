@@ -27,9 +27,9 @@ export const DashboardLayout = () => {
   }, [token])
 
   return (
-    <div className="relative flex min-h-screen bg-gradient-to-br from-[#0b1120] via-[#0f172a] to-[#1e1b4b] text-slate-100">
+    <div className="relative flex h-screen bg-gradient-to-br from-[#0b1120] via-[#0f172a] to-[#1e1b4b] text-slate-100">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(127,90,240,0.22),_transparent_45%),radial-gradient(circle_at_bottom,_rgba(44,182,125,0.15),_transparent_40%)]" />
-      <aside className="relative z-10 flex h-screen w-72 flex-col overflow-hidden border-r border-white/5 bg-white/5 backdrop-blur-xl">
+      <aside className="relative z-10 flex h-full w-72 flex-col overflow-hidden border-r border-white/5 bg-white/5 backdrop-blur-xl">
         <div className="flex-shrink-0 px-6 pb-6 pt-8">
           <img
             src="/logo192.png"
@@ -86,7 +86,7 @@ export const DashboardLayout = () => {
           </button>
         </div>
       </aside>
-      <main className="relative z-10 flex flex-1 flex-col">
+      <main className="relative z-10 flex h-full flex-1 flex-col overflow-hidden">
         <header className="flex items-center justify-between border-b border-white/5 bg-white/5 px-10 py-6 backdrop-blur-xl">
           <div>
             <p className="text-xs uppercase tracking-[0.4em] text-accent">Deeeplinks Analytics</p>
