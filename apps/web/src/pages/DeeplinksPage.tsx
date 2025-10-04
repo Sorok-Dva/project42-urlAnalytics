@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -8,7 +8,8 @@ import {
   archiveLinkRequest,
   unarchiveLinkRequest,
   deleteLinkRequest,
-  transferLinkRequest
+  transferLinkRequest,
+  updateLinkRequest
 } from '../api/links'
 import { useToast } from '../providers/ToastProvider'
 import { fetchDomains } from '../api/domains'
@@ -26,7 +27,8 @@ import {
   RotateCcw,
   Trash2,
   PlusCircle,
-  Loader2
+  Loader2,
+  Edit3
 } from 'lucide-react'
 
 export const DeeplinksPage = () => {
@@ -46,6 +48,8 @@ export const DeeplinksPage = () => {
   }>({ link: null, workspaceId: '', domain: '' })
   const [transferDomains, setTransferDomains] = useState<Array<{ id: string; domain: string; status: string }>>([])
   const [transferDomainsLoading, setTransferDomainsLoading] = useState(false)
+  const [editingLinkId, setEditingLinkId] = useState<string | null>(null)
+  const [editingForm, setEditingForm] = useState({ label: '', slug: '', originalUrl: '' })
 
   const workspaces = useAuth(state => state.workspaces)
   const workspaceId = useAuth(state => state.workspaceId)
@@ -179,6 +183,23 @@ export const DeeplinksPage = () => {
     }
   })
 
+  const inlineUpdateMutation = useMutation({
+    mutationFn: (input: { id: string; payload: Record<string, unknown> }) =>
+      updateLinkRequest(input.id, input.payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['links'] })
+      push({
+        title: t('deeplinks.toast.updated.title'),
+        description: t('deeplinks.toast.updated.description')
+      })
+      setEditingLinkId(null)
+      setEditingForm({ label: '', slug: '', originalUrl: '' })
+    },
+    onError: error => {
+      push({ title: t('deeplinks.toast.updateError.title'), description: getApiErrorMessage(error) })
+    }
+  })
+
   const statusLabels = useMemo(
     () => ({
       active: t('deeplinks.status.active'),
@@ -194,6 +215,61 @@ export const DeeplinksPage = () => {
     () => workspaces.filter(item => item.id !== workspaceId && item.memberStatus === 'active'),
     [workspaces, workspaceId]
   )
+
+  const beginInlineEdit = useCallback(
+    (link: Link) => {
+      if (inlineUpdateMutation.isPending) return
+      setEditingLinkId(link.id)
+      setEditingForm({
+        label: link.label ?? '',
+        slug: link.slug,
+        originalUrl: link.originalUrl
+      })
+    },
+    [inlineUpdateMutation.isPending]
+  )
+
+  const cancelInlineEdit = useCallback(() => {
+    setEditingLinkId(null)
+    setEditingForm({ label: '', slug: '', originalUrl: '' })
+  }, [])
+
+  const saveInlineLink = useCallback(
+    async (link: Link) => {
+      const trimmed = {
+        label: editingForm.label.trim(),
+        slug: editingForm.slug.trim(),
+        originalUrl: editingForm.originalUrl.trim()
+      }
+
+      if (!trimmed.originalUrl || !trimmed.slug) return
+      if (
+        trimmed.originalUrl === link.originalUrl &&
+        trimmed.slug === link.slug &&
+        trimmed.label === (link.label ?? '')
+      ) {
+        return
+      }
+
+      await inlineUpdateMutation.mutateAsync({
+        id: link.id,
+        payload: {
+          originalUrl: trimmed.originalUrl,
+          slug: trimmed.slug,
+          label: trimmed.label ? trimmed.label : null
+        }
+      })
+    },
+    [editingForm, inlineUpdateMutation]
+  )
+
+  useEffect(() => {
+    if (!editingLinkId) return
+    const exists = filteredLinks.some(link => link.id === editingLinkId)
+    if (!exists) {
+      cancelInlineEdit()
+    }
+  }, [filteredLinks, editingLinkId, cancelInlineEdit])
 
   useEffect(() => {
     if (!transferContext.link) {
@@ -411,75 +487,177 @@ export const DeeplinksPage = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/60">
-            {filteredLinks.map(link => (
-              <tr key={link.id} className="hover:bg-slate-800/40">
-                <td className="px-4 py-3 font-medium text-slate-200">
-                  <div className="text-sm font-semibold text-slate-100">{link.label ?? link.slug}</div>
-                  <div className="text-xs text-slate-400">{link.slug}</div>
-                </td>
-                <td className="px-4 py-3 text-slate-300">{link.originalUrl}</td>
-                <td className="px-4 py-3 text-slate-300">{link.clickCount}</td>
-                <td className="px-4 py-3 text-xs uppercase text-muted">{statusLabels[link.status]}</td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-wrap gap-2 text-xs">
-                    <button
-                      onClick={() => navigate(`/deeplinks/${link.id}`)}
-                      className="flex items-center gap-1.5 rounded border border-slate-700 px-3 py-1.5 text-slate-200 transition hover:border-accent"
-                    >
-                      <Eye className="h-4 w-4" />
-                      {t('deeplinks.actions.details')}
-                    </button>
-                    <button
-                      onClick={() => navigate(`/statistics/${link.id}`)}
-                      className="flex items-center gap-1.5 rounded border border-slate-700 px-3 py-1.5 text-slate-200 transition hover:border-accent"
-                    >
-                      <BarChart3 className="h-4 w-4" />
-                      {t('deeplinks.actions.stats')}
-                    </button>
-                    <button
-                      onClick={() => handleCopy(link)}
-                      className="flex items-center gap-1.5 rounded border border-slate-700 px-3 py-1.5 text-slate-200 transition hover:border-accent"
-                    >
-                      <CopyIcon className="h-4 w-4" />
-                      {t('deeplinks.actions.copy')}
-                    </button>
-                    {availableTargets.length > 0 && (
-                      <button
-                        onClick={() => beginTransfer(link)}
-                        className="flex items-center gap-1.5 rounded border border-slate-700 px-3 py-1.5 text-slate-200 transition hover:border-accent"
-                      >
-                        <MoveRight className="h-4 w-4" />
-                        {t('deeplinks.actions.transfer')}
-                      </button>
-                    )}
-                    {link.status !== 'archived' ? (
-                      <button
-                        onClick={() => archiveMutation.mutate(link.id)}
-                        className="flex items-center gap-1.5 rounded border border-amber-500/50 px-3 py-1.5 text-amber-200 transition hover:border-amber-500 hover:bg-amber-500/10"
-                      >
-                        <ArchiveIcon className="h-4 w-4" />
-                        {t('deeplinks.actions.archive')}
-                      </button>
+            {filteredLinks.map(link => {
+              const isEditing = editingLinkId === link.id
+              const trimmedOriginalUrl = editingForm.originalUrl.trim()
+              const trimmedSlug = editingForm.slug.trim()
+              const trimmedLabel = editingForm.label.trim()
+              const originalLabel = link.label ?? ''
+              const hasInlineChanges =
+                isEditing &&
+                (trimmedOriginalUrl !== link.originalUrl || trimmedSlug !== link.slug || trimmedLabel !== originalLabel)
+              const inlineSaving = inlineUpdateMutation.isPending && isEditing
+              const canInlineSave =
+                isEditing &&
+                trimmedOriginalUrl.length > 0 &&
+                trimmedSlug.length > 0 &&
+                hasInlineChanges &&
+                !inlineUpdateMutation.isPending
+
+              const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault()
+                  if (canInlineSave) {
+                    saveInlineLink(link).catch(() => {})
+                  }
+                }
+              }
+
+              return (
+                <tr
+                  key={link.id}
+                  className={`${isEditing ? 'bg-slate-800/30' : 'hover:bg-slate-800/40'} transition`}
+                >
+                  <td
+                    className="px-4 py-3 font-medium text-slate-200"
+                    onDoubleClick={() => {
+                      if (!isEditing) beginInlineEdit(link)
+                    }}
+                  >
+                    {isEditing ? (
+                      <div className="space-y-2">
+                        <input
+                          value={editingForm.label}
+                          onChange={event => setEditingForm(prev => ({ ...prev, label: event.target.value }))}
+                          onKeyDown={handleKeyDown}
+                          className="w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-accent focus:outline-none"
+                          placeholder={t('deeplinks.form.labelPlaceholder')}
+                        />
+                        <input
+                          value={editingForm.slug}
+                          onChange={event => setEditingForm(prev => ({ ...prev, slug: event.target.value }))}
+                          onKeyDown={handleKeyDown}
+                          className="w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-slate-100 focus:border-accent focus:outline-none"
+                          placeholder={t('deeplinks.form.slugPlaceholder')}
+                        />
+                      </div>
                     ) : (
-                      <button
-                        onClick={() => unarchiveMutation.mutate(link.id)}
-                        className="flex items-center gap-1.5 rounded border border-emerald-500/50 px-3 py-1.5 text-emerald-200 transition hover:border-emerald-500 hover:bg-emerald-500/10"
-                      >
-                        <RotateCcw className="h-4 w-4" />
-                        {t('deeplinks.actions.unarchive')}
-                      </button>
+                      <div className="cursor-pointer space-y-1" onDoubleClick={() => beginInlineEdit(link)}>
+                        <div className="text-sm font-semibold text-slate-100">{link.label ?? link.slug}</div>
+                        <div className="text-xs text-slate-400">{link.slug}</div>
+                      </div>
                     )}
-                    <button
-                      onClick={() => deleteMutation.mutate(link.id)}
-                      className="flex items-center gap-1.5 rounded border border-red-500/50 px-3 py-1.5 text-red-300 transition hover:border-red-500 hover:bg-red-500/10"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      {t('deeplinks.actions.delete')}
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td
+                    className="px-4 py-3 text-slate-300"
+                    onDoubleClick={() => {
+                      if (!isEditing) beginInlineEdit(link)
+                    }}
+                  >
+                    {isEditing ? (
+                      <input
+                        value={editingForm.originalUrl}
+                        onChange={event => setEditingForm(prev => ({ ...prev, originalUrl: event.target.value }))}
+                        onKeyDown={handleKeyDown}
+                        className="w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-accent focus:outline-none"
+                        placeholder={t('deeplinks.form.originalUrlPlaceholder')}
+                      />
+                    ) : (
+                      <span className="block max-w-[320px] truncate text-slate-300" title={link.originalUrl}>
+                        {link.originalUrl}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-slate-300">{link.clickCount}</td>
+                  <td className="px-4 py-3 text-xs uppercase text-muted">{statusLabels[link.status]}</td>
+                  <td className="px-4 py-3">
+                    {isEditing ? (
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => saveInlineLink(link).catch(() => {})}
+                          className="flex items-center gap-1.5 rounded border border-emerald-500/50 px-3 py-1.5 text-emerald-200 transition hover:border-emerald-500 hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={!canInlineSave}
+                        >
+                          {inlineSaving ? t('common.saving') : t('common.save')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelInlineEdit}
+                          className="rounded border border-slate-700 px-3 py-1.5 text-slate-200 transition hover:border-accent"
+                        >
+                          {t('common.cancel')}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        <button
+                          onClick={() => beginInlineEdit(link)}
+                          className="flex items-center gap-1.5 rounded border border-slate-700 px-3 py-1.5 text-slate-200 transition hover:border-accent"
+                        >
+                          <Edit3 className="h-4 w-4" />
+                          {t('deeplinks.actions.edit')}
+                        </button>
+                        <button
+                          onClick={() => navigate(`/deeplinks/${link.id}`)}
+                          className="flex items-center gap-1.5 rounded border border-slate-700 px-3 py-1.5 text-slate-200 transition hover:border-accent"
+                        >
+                          <Eye className="h-4 w-4" />
+                          {t('deeplinks.actions.details')}
+                        </button>
+                        <button
+                          onClick={() => navigate(`/statistics/${link.id}`)}
+                          className="flex items-center gap-1.5 rounded border border-slate-700 px-3 py-1.5 text-slate-200 transition hover:border-accent"
+                        >
+                          <BarChart3 className="h-4 w-4" />
+                          {t('deeplinks.actions.stats')}
+                        </button>
+                        <button
+                          onClick={() => handleCopy(link)}
+                          className="flex items-center gap-1.5 rounded border border-slate-700 px-3 py-1.5 text-slate-200 transition hover:border-accent"
+                        >
+                          <CopyIcon className="h-4 w-4" />
+                          {t('deeplinks.actions.copy')}
+                        </button>
+                        {availableTargets.length > 0 && (
+                          <button
+                            onClick={() => beginTransfer(link)}
+                            className="flex items-center gap-1.5 rounded border border-slate-700 px-3 py-1.5 text-slate-200 transition hover:border-accent"
+                          >
+                            <MoveRight className="h-4 w-4" />
+                            {t('deeplinks.actions.transfer')}
+                          </button>
+                        )}
+                        {link.status !== 'archived' ? (
+                          <button
+                            onClick={() => archiveMutation.mutate(link.id)}
+                            className="flex items-center gap-1.5 rounded border border-amber-500/50 px-3 py-1.5 text-amber-200 transition hover:border-amber-500 hover:bg-amber-500/10"
+                          >
+                            <ArchiveIcon className="h-4 w-4" />
+                            {t('deeplinks.actions.archive')}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => unarchiveMutation.mutate(link.id)}
+                            className="flex items-center gap-1.5 rounded border border-emerald-500/50 px-3 py-1.5 text-emerald-200 transition hover:border-emerald-500 hover:bg-emerald-500/10"
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                            {t('deeplinks.actions.unarchive')}
+                          </button>
+                        )}
+                        <button
+                          onClick={() => deleteMutation.mutate(link.id)}
+                          className="flex items-center gap-1.5 rounded border border-red-500/50 px-3 py-1.5 text-red-300 transition hover:border-red-500 hover:bg-red-500/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          {t('deeplinks.actions.delete')}
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
             {linksLoading && (
               <tr>
                 <td colSpan={5} className="px-4 py-6">

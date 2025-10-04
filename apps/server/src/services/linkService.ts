@@ -420,18 +420,17 @@ const extractUtmFromQuery = (query?: Record<string, unknown>) => {
   return hasValue ? utm : null
 }
 
-export const getLinkAnalytics = async (params: {
-  workspaceId: string
-  projectId?: string
-  linkId?: string
-  interval: AggregationInterval
-  page?: number
-  pageSize?: number
-  filters?: AnalyticsFilters
-}) => {
+const buildAnalyticsSnapshot = (
+  events: LinkEvent[],
+  params: {
+    interval: AggregationInterval
+    page?: number
+    pageSize?: number
+    filters?: AnalyticsFilters
+  }
+) => {
   const page = params.page ?? 1
   const pageSize = params.pageSize ?? 25
-  const events = await fetchEventsForInterval({ ...params, filters: params.filters })
   const timeSeries = buildTimeSeries(events, params.interval)
   const timeSeriesGranularity = getIntervalGranularity(params.interval)
   const offset = (page - 1) * pageSize
@@ -660,6 +659,38 @@ export const getLinkAnalytics = async (params: {
     availableFilters,
     appliedFilters
   }
+}
+
+export const getLinkAnalytics = async (params: {
+  workspaceId: string
+  projectId?: string
+  linkId?: string
+  interval: AggregationInterval
+  page?: number
+  pageSize?: number
+  filters?: AnalyticsFilters
+}) => {
+  const events = await fetchEventsForInterval({ ...params, filters: params.filters })
+  return buildAnalyticsSnapshot(events, params)
+}
+
+export const getAdminAnalytics = async (params: {
+  interval: AggregationInterval
+  page?: number
+  pageSize?: number
+  filters?: AnalyticsFilters
+  workspaceId?: string
+  userId?: string
+}) => {
+  const events = await fetchEventsForInterval({
+    workspaceId: params.workspaceId,
+    interval: params.interval,
+    page: params.page,
+    pageSize: params.pageSize,
+    filters: params.filters,
+    userId: params.userId
+  })
+  return buildAnalyticsSnapshot(events, params)
 }
 
 export const togglePublicStats = async (linkId: string, enabled: boolean) => {

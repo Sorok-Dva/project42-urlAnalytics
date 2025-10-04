@@ -1,6 +1,7 @@
 import { Op } from 'sequelize'
 import { subDays, subMonths, subYears } from 'date-fns'
 import { LinkEvent } from '../models/linkEvent'
+import { Link } from '../models/link'
 import { AggregationInterval, type AnalyticsFilters } from '@p42/shared'
 import { getInteractionType } from './interactionType'
 
@@ -105,7 +106,9 @@ const applyEventFilters = (events: LinkEvent[], filters?: AnalyticsFilters) => {
 }
 
 export const fetchEventsForInterval = async (filters: {
-  workspaceId: string
+  workspaceId?: string
+  workspaceIds?: string[]
+  userId?: string
   projectId?: string
   linkId?: string
   interval: AggregationInterval
@@ -115,13 +118,31 @@ export const fetchEventsForInterval = async (filters: {
 }) => {
   const start = intervalToStart(filters.interval)
   const where: Record<string, unknown> = {
-    workspaceId: filters.workspaceId,
     occurredAt: { [Op.gte]: start }
+  }
+  if (filters.workspaceId) {
+    where.workspaceId = filters.workspaceId
+  } else if (filters.workspaceIds && filters.workspaceIds.length > 0) {
+    where.workspaceId = { [Op.in]: filters.workspaceIds }
   }
   if (filters.projectId) where.projectId = filters.projectId
   if (filters.linkId) where.linkId = filters.linkId
 
-  const events = await LinkEvent.findAll({ where, order: [['occurredAt', 'ASC']] })
+  const include = [] as Parameters<typeof LinkEvent.findAll>[0]['include']
+  if (filters.userId) {
+    include?.push({
+      model: Link,
+      as: 'link',
+      attributes: [],
+      where: { createdById: filters.userId }
+    })
+  }
+
+  const events = await LinkEvent.findAll({
+    where,
+    order: [['occurredAt', 'ASC']],
+    ...(include && include.length ? { include } : {})
+  })
   return applyEventFilters(events, filters.filters)
 }
 

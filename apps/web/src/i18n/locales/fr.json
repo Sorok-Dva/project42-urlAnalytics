@@ -8,7 +8,8 @@
     "statistics": "Statistiques",
     "deeplinks": "Liens",
     "qr": "QR Codes",
-    "logout": "Déconnexion"
+    "logout": "Déconnexion",
+    "admin": "Admin"
   },
   "common": {
     "cancel": "Annuler",
@@ -75,7 +76,9 @@
       "transfer": "Transférer",
       "archive": "Archiver",
       "unarchive": "Restaurer",
-      "delete": "Supprimer"
+      "delete": "Supprimer",
+      "edit": "Modifier",
+      "back": "Retour aux liens"
     },
     "table": {
       "name": "Nom",
@@ -123,6 +126,13 @@
       "deleteError": {
         "title": "Suppression impossible"
       },
+      "updated": {
+        "title": "Lien mis à jour",
+        "description": "Les modifications ont été enregistrées."
+      },
+      "updateError": {
+        "title": "Impossible de mettre à jour le lien"
+      },
       "transferred": {
         "title": "Lien transféré",
         "description": "Le lien a été déplacé vers l'espace de travail sélectionné."
@@ -135,6 +145,96 @@
   "qr": {
     "title": "Mes QR codes",
     "create": "Créer un QR"
+  },
+  "admin": {
+    "title": "Administration",
+    "subtitle": "Supervisez les comptes, ajustez les limites des workspaces et gérez les invitations.",
+    "signupsDisabledNotice": "Les inscriptions publiques sont désactivées. Générez des codes d'invitation pour ajouter de nouveaux utilisateurs.",
+    "stats": {
+      "users": "Utilisateurs",
+      "admins": "Admins",
+      "workspaces": "Workspaces",
+      "links": "Liens",
+      "activeLinks": "Liens actifs",
+      "qrCodes": "QR codes",
+      "events": "Évènements"
+    },
+    "roles": {
+      "admin": "Administrateur",
+      "user": "Utilisateur"
+    },
+    "recentUsers": {
+      "title": "Dernières inscriptions",
+      "description": "Comptes récemment créés sur la plateforme.",
+      "name": "Nom",
+      "email": "Email",
+      "role": "Rôle",
+      "created": "Créé le",
+      "lastLogin": "Dernière connexion",
+      "empty": "Aucun utilisateur pour le moment.",
+      "never": "Jamais"
+    },
+    "workspaces": {
+      "title": "Plans des workspaces",
+      "description": "Mettez à jour le plan et les limites de ressources de chaque workspace.",
+      "empty": "Aucun workspace enregistré.",
+      "columns": {
+        "workspace": "Workspace",
+        "plan": "Plan",
+        "limits": "Limites",
+        "usage": "Utilisation",
+        "actions": "Actions"
+      },
+      "owner": "Propriétaire : {{email}}",
+      "limits": {
+        "links": "Liens",
+        "qr": "QR codes",
+        "members": "Membres",
+        "unlimited": "Illimité"
+      },
+      "usage": {
+        "links": "{{usage}} liens (limite : {{total}})",
+        "qr": "{{usage}} QR codes (limite : {{total}})",
+        "members": "{{usage}} membres (limite : {{total}})"
+      },
+      "edit": "Modifier les limites",
+      "updated": "Workspace mis à jour",
+      "updateError": "Impossible de mettre à jour le workspace"
+    },
+    "invites": {
+      "title": "Codes d'invitation",
+      "description": "Créez des codes d'invitation lorsque les inscriptions sont restreintes.",
+      "placeholder": "Code personnalisé (optionnel)",
+      "generate": "Créer le code",
+      "generateRandom": "Générer aléatoirement",
+      "created": "Invitation créée",
+      "createError": "Impossible de créer l'invitation",
+      "empty": "Aucun code d'invitation pour le moment.",
+      "code": "Code",
+      "status": "Statut",
+      "generated": "Généré",
+      "usedBy": "Utilisé par",
+      "statusUsed": "Utilisé le {{date}}",
+      "statusUnused": "Non utilisé"
+    },
+    "filters": {
+      "workspace": "Workspace",
+      "account": "Compte",
+      "allWorkspaces": "Tous les workspaces",
+      "allAccounts": "Tous les comptes",
+      "workspaceError": "Impossible de charger les workspaces.",
+      "accountError": "Impossible de charger les comptes.",
+      "noWorkspaces": "Aucun workspace disponible",
+      "noAccounts": "Aucun compte disponible"
+    },
+    "menu": {
+      "dashboard": "Dashboard",
+      "statistics": "Statistiques"
+    },
+    "analytics": {
+      "title": "Analytique globale",
+      "subtitle": "Analysez les performances cumulées de tous les workspaces et comptes."
+    }
   },
   "auth": {
     "title": "Connexion",

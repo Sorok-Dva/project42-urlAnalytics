@@ -10,9 +10,11 @@ import * as webhookController from '../controllers/webhookController'
 import * as utilsController from '../controllers/utilsController'
 import * as dashboardController from '../controllers/dashboardController'
 import * as workspaceController from '../controllers/workspaceController'
+import * as adminController from '../controllers/adminController'
 import { requireAuth } from '../middleware/auth'
 import { requireRole } from '../middleware/requireRole'
 import { apiRateLimit } from '../middleware/rateLimit'
+import { requireAdmin } from '../middleware/requireAdmin'
 
 const router: ExpressRouter = Router()
 
@@ -25,6 +27,14 @@ router.get('/public/links/:token', publicStatsController.linkStats)
 router.get('/public/projects/:token', publicStatsController.projectStats)
 
 router.use(requireAuth, apiRateLimit)
+
+router.get('/admin/stats', requireAdmin, adminController.stats)
+router.get('/admin/workspaces', requireAdmin, adminController.listWorkspaces)
+router.patch('/admin/workspaces/:id', requireAdmin, adminController.updateWorkspace)
+router.get('/admin/invites', requireAdmin, adminController.invites)
+router.post('/admin/invites', requireAdmin, adminController.createInvite)
+router.get('/admin/users', requireAdmin, adminController.listUsers)
+router.get('/admin/analytics', requireAdmin, adminController.analytics)
 
 router.get('/workspaces', workspaceController.list)
 router.post('/workspaces', workspaceController.create)

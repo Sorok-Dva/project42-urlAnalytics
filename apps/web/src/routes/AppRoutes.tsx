@@ -8,6 +8,7 @@ import { QrCodesPage } from '../pages/QrCodesPage'
 import { QrDesignPage } from '../pages/QrDesignPage'
 import { WorkspacesPage } from '../pages/WorkspacesPage'
 import { AuthPage } from '../pages/AuthPage'
+import { AdminDashboardPage } from '../pages/AdminDashboardPage'
 import { useAuth } from '../stores/auth'
 
 const RequireAuth = () => {
@@ -16,15 +17,28 @@ const RequireAuth = () => {
   return <Outlet />
 }
 
+const RequireAdmin = () => {
+  const user = useAuth(state => state.user)
+  const token = useAuth(state => state.token)
+  if (!token) return <Navigate to="/auth" replace />
+  if (!user) return null
+  if (user.role !== 'admin') return <Navigate to="/" replace />
+  return <Outlet />
+}
+
 export const AppRoutes = () => {
   return (
     <Routes>
       <Route path="/auth" element={<AuthPage />} />
       <Route element={<RequireAuth />}>
-          <Route element={<DashboardLayout />}>
-            <Route index element={<HomePage />} />
-            <Route path="workspaces" element={<WorkspacesPage />} />
-            <Route path="statistics" element={<StatisticsPage />} />
+        <Route element={<DashboardLayout />}>
+          <Route index element={<HomePage />} />
+          <Route path="workspaces" element={<WorkspacesPage />} />
+          <Route path="statistics" element={<StatisticsPage />} />
+          <Route element={<RequireAdmin />}>
+            <Route path="admin" element={<AdminDashboardPage />} />
+            <Route path="admin/stats" element={<StatisticsPage mode="admin" />} />
+          </Route>
           <Route path="statistics/:linkId" element={<StatisticsPage />} />
           <Route path="deeplinks" element={<DeeplinksPage />} />
           <Route path="deeplinks/:linkId" element={<LinkDetailsPage />} />

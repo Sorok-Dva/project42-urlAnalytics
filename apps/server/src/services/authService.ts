@@ -31,6 +31,7 @@ export const registerUser = async (
     email: payload.email.toLowerCase(),
     passwordHash,
     name: payload.name,
+    role: 'user',
     avatarUrl: null,
     timezone: 'UTC'
   }, { transaction })

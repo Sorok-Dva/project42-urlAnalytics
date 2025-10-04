@@ -10,7 +10,9 @@ import type {
   AnalyticsTimeBucket,
   WorkspaceSummary,
   WorkspaceMemberSummary,
-  WorkspaceRole
+  WorkspaceRole,
+  WorkspacePlanLimits,
+  UserRole
 } from '@p42/shared'
 
 export interface GeoRule {
@@ -25,6 +27,63 @@ export interface User {
   email: string
   name: string
   avatarUrl?: string | null
+  role: UserRole
+}
+
+export interface AdminUserSummary {
+  id: string
+  email: string
+  name: string
+  role: UserRole
+  createdAt?: string
+  lastLoginAt?: string | null
+}
+
+export interface AdminStats {
+  totals: {
+    totalUsers: number
+    totalAdmins: number
+    totalWorkspaces: number
+    totalLinks: number
+    totalActiveLinks: number
+    totalQrCodes: number
+    totalEvents: number
+  }
+  recentUsers: AdminUserSummary[]
+  signupsDisabled: boolean
+}
+
+export interface AdminWorkspaceSummary {
+  id: string
+  name: string
+  slug: string
+  plan: 'free' | 'pro' | 'enterprise'
+  planLimits: WorkspacePlanLimits
+  isActive: boolean
+  createdAt?: string
+  owner: {
+    id: string
+    email: string
+    name: string
+  } | null
+  usage: {
+    links: number
+    activeLinks: number
+    qrCodes: number
+    members: number
+  }
+}
+
+export interface SignupInviteSummary {
+  id: string
+  code: string
+  createdAt?: string
+  usedAt?: string | null
+  usedBy?: {
+    id: string
+    email: string
+    name: string
+  } | null
 }
 
 export interface Link {

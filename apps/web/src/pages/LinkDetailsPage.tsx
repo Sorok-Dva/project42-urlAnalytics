@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { fetchLinkDetails, updateLinkRequest } from '../api/links'
@@ -13,6 +13,48 @@ import { StatusBadge } from '../components/StatusBadge'
 import dayjs from '../lib/dayjs'
 import { getApiErrorMessage } from '../lib/apiError'
 import { useAuth } from '../stores/auth'
+
+const initialFormState = {
+  originalUrl: '',
+  slug: '',
+  label: '',
+  comment: '',
+  domain: '',
+  projectId: '',
+  maxClicks: '',
+  expireAt: '',
+  fallbackUrl: '',
+  publicStats: false
+}
+
+const serializeFormState = (
+  state: typeof initialFormState,
+  geoRules: GeoRuleForm[]
+) => {
+  const normalizedGeoRules = geoRules.map(rule => ({
+    priority: Number(rule.priority) || 0,
+    scope: rule.scope,
+    target: rule.target.trim(),
+    url: rule.url.trim()
+  }))
+
+  return JSON.stringify({
+    form: {
+      ...state,
+      label: state.label.trim(),
+      slug: state.slug.trim(),
+      originalUrl: state.originalUrl.trim(),
+      comment: state.comment.trim(),
+      domain: state.domain,
+      projectId: state.projectId,
+      maxClicks: state.maxClicks?.toString().trim() ?? '',
+      expireAt: state.expireAt ?? '',
+      fallbackUrl: state.fallbackUrl.trim(),
+      publicStats: state.publicStats
+    },
+    geoRules: normalizedGeoRules
+  })
+}
 
 interface GeoRuleForm {
   priority: number
@@ -29,6 +71,7 @@ const buildShareUrl = (token?: string | null) => {
 export const LinkDetailsPage = () => {
   const { t } = useTranslation()
   const params = useParams<{ linkId: string }>()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { push } = useToast()
   const workspaceId = useAuth(state => state.workspaceId)
@@ -52,23 +95,13 @@ export const LinkDetailsPage = () => {
   })
   const fallbackDomain = import.meta.env.VITE_DEFAULT_DOMAIN ?? 'p-42.fr'
 
-  const [form, setForm] = useState({
-    originalUrl: '',
-    slug: '',
-    label: '',
-    comment: '',
-    domain: '',
-    projectId: '',
-    maxClicks: '',
-    expireAt: '',
-    fallbackUrl: '',
-    publicStats: false
-  })
+  const [form, setForm] = useState(initialFormState)
   const [geoRules, setGeoRules] = useState<GeoRuleForm[]>([])
+  const [initialSnapshot, setInitialSnapshot] = useState('')
 
   useEffect(() => {
     if (!link) return
-    setForm({
+    const nextForm = {
       originalUrl: link.originalUrl,
       slug: link.slug,
       label: link.label ?? '',
@@ -79,7 +112,7 @@ export const LinkDetailsPage = () => {
       expireAt: link.expirationAt ? dayjs(link.expirationAt).format('YYYY-MM-DDTHH:mm') : '',
       fallbackUrl: link.fallbackUrl ?? '',
       publicStats: Boolean(link.publicStats)
-    })
+    }
     const normalizedRules = Array.isArray(link.geoRules)
       ? (link.geoRules as Array<GeoRuleForm | Record<string, unknown>>).map(rule => {
           const source = rule as Record<string, unknown>
@@ -91,7 +124,9 @@ export const LinkDetailsPage = () => {
           }
         })
       : []
+    setForm(nextForm)
     setGeoRules(normalizedRules)
+    setInitialSnapshot(serializeFormState(nextForm, normalizedRules))
   }, [link])
 
   const updateMutation = useMutation({
@@ -127,23 +162,42 @@ export const LinkDetailsPage = () => {
     [t]
   )
 
+  const currentSnapshot = useMemo(() => serializeFormState(form, geoRules), [form, geoRules])
+  const isDirty = useMemo(() => initialSnapshot !== '' && currentSnapshot !== initialSnapshot, [currentSnapshot, initialSnapshot])
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
-    await updateMutation.mutateAsync({
-      originalUrl: form.originalUrl,
-      slug: form.slug,
-      label: form.label.trim() ? form.label.trim() : null,
-      comment: form.comment,
-      domain: form.domain,
-      projectId: form.projectId || null,
-      geoRules,
-      expiration: {
-        expireAt: form.expireAt ? new Date(form.expireAt).toISOString() : undefined,
-        maxClicks: form.maxClicks ? Number(form.maxClicks) : undefined,
-        redirectUrl: form.fallbackUrl || undefined
-      },
-      publicStats: form.publicStats
-    })
+    try {
+      await updateMutation.mutateAsync({
+        originalUrl: form.originalUrl.trim(),
+        slug: form.slug.trim(),
+        label: form.label.trim() ? form.label.trim() : null,
+        comment: form.comment,
+        domain: form.domain,
+        projectId: form.projectId || null,
+        geoRules,
+        expiration: {
+          expireAt: form.expireAt ? new Date(form.expireAt).toISOString() : undefined,
+          maxClicks: form.maxClicks ? Number(form.maxClicks) : undefined,
+          redirectUrl: form.fallbackUrl ? form.fallbackUrl.trim() : undefined
+        },
+        publicStats: form.publicStats
+      })
+
+      const trimmedForm = {
+        ...form,
+        originalUrl: form.originalUrl.trim(),
+        slug: form.slug.trim(),
+        label: form.label.trim(),
+        comment: form.comment.trim(),
+        fallbackUrl: form.fallbackUrl.trim(),
+        maxClicks: form.maxClicks ? form.maxClicks.trim() : ''
+      }
+      setForm(trimmedForm)
+      setInitialSnapshot(serializeFormState(trimmedForm, geoRules))
+    } catch (error) {
+      // handled by mutation onError
+    }
   }
 
   const handleGeoRuleChange = (index: number, field: keyof GeoRuleForm, value: string) => {
@@ -207,12 +261,23 @@ export const LinkDetailsPage = () => {
             {shareUrl && <code className="rounded bg-slate-800/80 px-3 py-1 text-slate-300">{shareUrl}</code>}
           </div>
         </div>
-        <button
-          type="submit"
-          className="inline-flex items-center gap-2 rounded-md bg-accent px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-accent/30 hover:bg-accent/90"
-        >
-          Enregistrer
-        </button>
+        {isDirty ? (
+          <button
+            type="submit"
+            className="inline-flex items-center gap-2 rounded-md bg-accent px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-accent/30 hover:bg-accent/90 disabled:opacity-70"
+            disabled={updateMutation.isPending}
+          >
+            {updateMutation.isPending ? t('common.saving') : t('common.save')}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => navigate('/deeplinks')}
+            className="inline-flex items-center gap-2 rounded-md border border-slate-700 px-5 py-2 text-sm font-semibold text-slate-200 transition hover:border-accent hover:text-accent"
+          >
+            {t('deeplinks.actions.back')}
+          </button>
+        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

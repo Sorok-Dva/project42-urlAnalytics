@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../stores/auth'
@@ -7,18 +7,35 @@ import { setAuthToken } from '../api/client'
 import { StatusBadge } from '../components/StatusBadge'
 import { WorkspaceSwitcher } from '../components/WorkspaceSwitcher'
 
-const navItems = [
-  { to: '/', key: 'nav.home', icon: '🏠' },
-  { to: '/workspaces', key: 'nav.workspaces', icon: '🏢' },
-  { to: '/statistics', key: 'nav.statistics', icon: '📊' },
-  { to: '/deeplinks', key: 'nav.deeplinks', icon: '🔗' },
-  { to: '/qr-codes', key: 'nav.qr', icon: '🌀' }
-]
-
 export const DashboardLayout = () => {
   const { t } = useTranslation()
   const { token, logout, loadSession, user, workspaceId } = useAuth()
   const { theme, toggle } = useTheme()
+
+  const navItems = useMemo(() => {
+    const items = [
+      { to: '/', key: 'nav.home', icon: '🏠' },
+      { to: '/workspaces', key: 'nav.workspaces', icon: '🏢' },
+      { to: '/statistics', key: 'nav.statistics', icon: '📊' },
+      { to: '/deeplinks', key: 'nav.deeplinks', icon: '🔗' },
+      { to: '/qr-codes', key: 'nav.qr', icon: '🌀' }
+    ]
+    return items
+  }, [user?.role])
+  const adminLinks = useMemo(
+    () => [
+      { to: '/admin', label: t('admin.menu.dashboard') },
+      { to: '/admin/stats', label: t('admin.menu.statistics') }
+    ],
+    [t]
+  )
+  const [adminMenuOpen, setAdminMenuOpen] = useState(false)
+
+  useEffect(() => {
+    if (user?.role !== 'admin') {
+      setAdminMenuOpen(false)
+    }
+  }, [user?.role])
 
   useEffect(() => {
     loadSession()
@@ -76,6 +93,37 @@ export const DashboardLayout = () => {
           ))}
         </nav>
         <div className="flex-shrink-0 space-y-3 px-4 pb-4 pt-4">
+          {user?.role === 'admin' && (
+            <div className="overflow-hidden rounded-xl border border-slate-700 bg-slate-900/60">
+              <button
+                type="button"
+                onClick={() => setAdminMenuOpen(current => !current)}
+                className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold text-slate-200 transition hover:bg-slate-800"
+              >
+                <span>{t('nav.admin')}</span>
+                <span className={`text-xs transition-transform ${adminMenuOpen ? '-rotate-180' : ''}`}>▾</span>
+              </button>
+              {adminMenuOpen && (
+                <div className="space-y-1 border-t border-slate-800/60 px-3 py-2">
+                  {adminLinks.map(link => (
+                    <NavLink
+                      key={link.to}
+                      to={link.to}
+                      className={({ isActive }) =>
+                        `block rounded-lg px-3 py-2 text-xs font-medium transition ${
+                          isActive
+                            ? 'bg-accent/20 text-accent'
+                            : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                        }`
+                      }
+                    >
+                      {link.label}
+                    </NavLink>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           <button
             onClick={toggle}
             className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/10"

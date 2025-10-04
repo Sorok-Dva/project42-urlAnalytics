@@ -17,6 +17,25 @@ import dayjs from '../lib/dayjs'
 import { Link2, QrCode, BarChart3, ArrowRight } from 'lucide-react'
 import { ApiError } from '../lib/apiError'
 
+const HOME_RANGE_STORAGE_KEY = 'deeplinks:home-range'
+const HOME_RANGE_OPTIONS: DashboardTimeRange[] = [
+  '1min',
+  '5min',
+  '15min',
+  '30min',
+  '1h',
+  '6h',
+  '12h',
+  '24h',
+  '7d',
+  '14d',
+  '1mo',
+  '3mo',
+  '6mo',
+  '1y',
+  'all'
+]
+
 const onboardingSteps = [
   'Connect your first domain',
   'Create a short link',
@@ -81,6 +100,14 @@ export const HomePage = () => {
 
   const queryEnabled = Boolean(token)
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const stored = window.localStorage.getItem(HOME_RANGE_STORAGE_KEY) as DashboardTimeRange | null
+    if (stored && (HOME_RANGE_OPTIONS as ReadonlyArray<string>).includes(stored)) {
+      setRange(stored as DashboardTimeRange)
+    }
+  }, [])
+
   const rooms = useMemo(() => (workspaceId ? [`workspace:${workspaceId}`] : []), [workspaceId])
 
   const { data, isLoading, isFetching, error } = useQuery<OverviewResponse, ApiError>({
@@ -96,6 +123,13 @@ export const HomePage = () => {
       queryClient.removeQueries({ queryKey: ['overview'] })
     }
   }, [error, logout, queryClient])
+
+  const handleRangeChange = useCallback((value: DashboardTimeRange) => {
+    setRange(value)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(HOME_RANGE_STORAGE_KEY, value)
+    }
+  }, [])
 
   const invalidateOverview = useCallback(() => {
     if (!queryEnabled) return
@@ -145,7 +179,7 @@ export const HomePage = () => {
           <h2 className="text-3xl font-semibold text-slate-100">{t('home.welcome')}</h2>
           <p className="text-sm text-slate-400">Monitor the pulse of your links in real time.</p>
         </div>
-        <IntervalSelector value={range} onChange={setRange} />
+        <IntervalSelector value={range} onChange={handleRangeChange} />
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 export type WorkspaceRole = 'owner' | 'admin' | 'member' | 'viewer'
+export type UserRole = 'user' | 'admin'
 
 export type ShortLinkStatus = 'active' | 'archived' | 'deleted'
 

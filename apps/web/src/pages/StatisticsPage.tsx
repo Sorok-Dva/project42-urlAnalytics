@@ -30,8 +30,9 @@ import {
   YAxis
 } from 'recharts'
 import { LineChart } from '../components/LineChart'
-import type { AnalyticsFilterGroup } from '../types'
+import type { AnalyticsFilterGroup, AdminWorkspaceSummary, AdminUserSummary } from '../types'
 import type { AggregationInterval } from '@p42/shared'
+import { fetchAdminAnalytics, fetchAdminUsers, fetchAdminWorkspaces } from '../api/admin'
 
 const numberFormatter = new Intl.NumberFormat('fr-FR')
 
@@ -54,6 +55,8 @@ const formatInteractionLabel = (value: string) => {
 
 type TimeSeriesKey = AggregationInterval
 
+const STATISTICS_RANGE_STORAGE_KEY = 'deeplinks:statistics-range'
+
 const timeSeriesOptions = [
   { key: '1min', label: '1 min', granularity: 'second' as const },
   { key: '5min', label: '5 min', granularity: 'second' as const },
@@ -69,6 +72,8 @@ const timeSeriesOptions = [
   { key: '1y', label: '12 mois', granularity: 'month' as const },
   { key: 'all', label: 'Tout', granularity: 'month' as const }
 ] as const satisfies ReadonlyArray<{ key: TimeSeriesKey; label: string; granularity: 'second' | 'minute' | 'hour' | 'day' | 'month' }>
+
+const timeSeriesKeys = timeSeriesOptions.map(option => option.key)
 
 const timeSeriesDurations: Record<TimeSeriesKey, { amount: number; unit: 'second' | 'minute' | 'hour' | 'day' | 'month' | 'year' } | null> = {
   all: null,
@@ -204,11 +209,13 @@ const WeekdayChart = ({ data }: { data: AnalyticsAggregation['byWeekday'] }) => 
   )
 }
 
-export const StatisticsPage = () => {
+export const StatisticsPage = ({ mode = 'default' }: { mode?: 'default' | 'admin' } = {}) => {
   const { t } = useTranslation()
   const params = useParams<{ linkId?: string }>()
   const queryClient = useQueryClient()
-  const { workspaceId, token } = useAuth()
+  const { workspaceId, token, user } = useAuth()
+  const isAdminUser = user?.role === 'admin'
+  const adminMode = mode === 'admin' && isAdminUser
 
   const [selectedTimeSeries, setSelectedTimeSeries] = useState<TimeSeriesKey>('1d')
   const [selectedLink, setSelectedLink] = useState<string>('all')
@@ -217,19 +224,78 @@ export const StatisticsPage = () => {
   const [trafficSegment, setTrafficSegment] = useState<'all' | 'bot' | 'human'>('all')
   const [hideLocalReferrers, setHideLocalReferrers] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [selectedAdminWorkspace, setSelectedAdminWorkspace] = useState<string>('all')
+  const [selectedAccount, setSelectedAccount] = useState<string>('all')
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const stored = window.localStorage.getItem(STATISTICS_RANGE_STORAGE_KEY) as TimeSeriesKey | null
+    if (stored && (timeSeriesKeys as ReadonlyArray<string>).includes(stored)) {
+      setSelectedTimeSeries(stored as TimeSeriesKey)
+    }
+  }, [])
 
   const serializedFilters = useMemo(() => serializeFilters(filters), [filters])
 
   const linksQuery = useQuery({
     queryKey: ['links', workspaceId, 'statistics'],
     queryFn: () => fetchLinks({ status: 'active' }),
-    enabled: Boolean(token && workspaceId)
+    enabled: !adminMode && Boolean(token && workspaceId)
   })
   const projectsQuery = useQuery({
     queryKey: ['projects', workspaceId, 'statistics'],
     queryFn: fetchProjects,
-    enabled: Boolean(token && workspaceId)
+    enabled: !adminMode && Boolean(token && workspaceId)
   })
+
+  const adminWorkspacesQuery = useQuery({
+    queryKey: ['admin', 'workspaces', 'statistics'],
+    queryFn: fetchAdminWorkspaces,
+    enabled: adminMode
+  })
+
+  const adminUsersQuery = useQuery({
+    queryKey: ['admin', 'users'],
+    queryFn: fetchAdminUsers,
+    enabled: adminMode
+  })
+
+  useEffect(() => {
+    if (adminMode) {
+      setSelectedLink('all')
+      setSelectedProject('all')
+    } else {
+      setSelectedAdminWorkspace('all')
+      setSelectedAccount('all')
+    }
+  }, [adminMode])
+
+  const adminWorkspaces = useMemo(() => {
+    const list = adminWorkspacesQuery.data?.workspaces ?? []
+    return [...list].sort((a, b) => a.name.localeCompare(b.name))
+  }, [adminWorkspacesQuery.data])
+
+  const adminUsers = useMemo(() => {
+    const list = adminUsersQuery.data?.users ?? []
+    return [...list].sort((a, b) => a.email.localeCompare(b.email))
+  }, [adminUsersQuery.data])
+
+  const adminWorkspacesLoading = adminWorkspacesQuery.isLoading
+  const adminUsersLoading = adminUsersQuery.isLoading
+  const adminWorkspacesError = adminWorkspacesQuery.isError
+  const adminUsersError = adminUsersQuery.isError
+
+  useEffect(() => {
+    if (!adminMode) return
+    if (selectedAdminWorkspace !== 'all') {
+      const exists = adminWorkspaces.some(workspace => workspace.id === selectedAdminWorkspace)
+      if (!exists) setSelectedAdminWorkspace('all')
+    }
+    if (selectedAccount !== 'all') {
+      const exists = adminUsers.some(account => account.id === selectedAccount)
+      if (!exists) setSelectedAccount('all')
+    }
+  }, [adminMode, adminWorkspaces, adminUsers, selectedAdminWorkspace, selectedAccount])
 
   useEffect(() => {
     if (params.linkId) {
@@ -238,21 +304,33 @@ export const StatisticsPage = () => {
   }, [params.linkId])
 
   const analyticsQuery = useQuery({
-    queryKey: ['analytics', workspaceId, selectedProject, selectedLink, serializedFilters, selectedTimeSeries],
-    enabled: Boolean(token && workspaceId),
+    queryKey: adminMode
+      ? ['admin', 'analytics', selectedAdminWorkspace, selectedAccount, serializedFilters, selectedTimeSeries]
+      : ['analytics', workspaceId, selectedProject, selectedLink, serializedFilters, selectedTimeSeries],
+    enabled: adminMode ? Boolean(token) : Boolean(token && workspaceId),
     queryFn: () =>
-      fetchEventsAnalytics({
-        projectId: selectedProject !== 'all' ? selectedProject : undefined,
-        linkId: selectedLink !== 'all' ? selectedLink : undefined,
-        filters: serializedFilters,
-        period: selectedTimeSeries
-      })
+      adminMode
+        ? fetchAdminAnalytics({
+            period: selectedTimeSeries,
+            workspaceId: selectedAdminWorkspace !== 'all' ? selectedAdminWorkspace : undefined,
+            userId: selectedAccount !== 'all' ? selectedAccount : undefined,
+            filters: serializedFilters
+          })
+        : fetchEventsAnalytics({
+            projectId: selectedProject !== 'all' ? selectedProject : undefined,
+            linkId: selectedLink !== 'all' ? selectedLink : undefined,
+            filters: serializedFilters,
+            period: selectedTimeSeries
+          })
   })
 
   const { refetch: refetchAnalytics } = analyticsQuery
 
   const handleTimeSeriesSelect = useCallback((key: TimeSeriesKey) => {
     setSelectedTimeSeries(key)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(STATISTICS_RANGE_STORAGE_KEY, key)
+    }
   }, [])
 
   const refreshInterval = timeSeriesRefreshIntervals[selectedTimeSeries] ?? null
@@ -267,14 +345,16 @@ export const StatisticsPage = () => {
   }, [refreshInterval, refetchAnalytics])
 
   const rooms = useMemo(() => {
+    if (adminMode) return [] as string[]
     return [
       workspaceId ? `workspace:${workspaceId}` : null,
       selectedLink !== 'all' ? `link:${selectedLink}` : null,
       selectedProject !== 'all' ? `project:${selectedProject}` : null
     ].filter(Boolean) as string[]
-  }, [workspaceId, selectedLink, selectedProject])
+  }, [adminMode, workspaceId, selectedLink, selectedProject])
 
   useRealtimeAnalytics(rooms, event => {
+    if (adminMode) return
     if (selectedLink !== 'all' && event.linkId !== selectedLink) return
     if (selectedProject !== 'all' && event.projectId !== selectedProject) return
     analyticsQuery.refetch()
@@ -282,7 +362,7 @@ export const StatisticsPage = () => {
 
   const linkDetailsQuery = useQuery({
     queryKey: ['link', workspaceId, selectedLink],
-    enabled: selectedLink !== 'all' && Boolean(workspaceId),
+    enabled: !adminMode && selectedLink !== 'all' && Boolean(workspaceId),
     queryFn: () => fetchLinkDetails(selectedLink)
   })
 
@@ -372,7 +452,11 @@ export const StatisticsPage = () => {
     setFilters({})
     setTrafficSegment('all')
     setHideLocalReferrers(false)
-  }, [])
+    if (adminMode) {
+      setSelectedAdminWorkspace('all')
+      setSelectedAccount('all')
+    }
+  }, [adminMode])
 
   const handleToggleFilter = useCallback((groupId: keyof AnalyticsFilters, value: string) => {
     setFilters(prev => {
@@ -503,12 +587,13 @@ export const StatisticsPage = () => {
 
   const isLoading = analyticsQuery.isLoading || !analytics
 
-  const shareUrl =
-    selectedLink !== 'all' && linkDetails?.publicStats && linkDetails.publicStatsToken
-      ? `${import.meta.env.VITE_PUBLIC_BASE_URL}/share/link/${linkDetails.publicStatsToken}`
-      : selectedLink === 'all'
-        ? 'N/A'
-        : 'Privé'
+  const shareUrl = adminMode
+    ? '—'
+    : selectedLink !== 'all' && linkDetails?.publicStats && linkDetails.publicStatsToken
+        ? `${import.meta.env.VITE_PUBLIC_BASE_URL}/share/link/${linkDetails.publicStatsToken}`
+        : selectedLink === 'all'
+          ? 'N/A'
+          : 'Privé'
 
   if (!selectedLink || isLoading) {
     return <div className="text-muted">{t('statistics.loading', 'Chargement des statistiques...')}</div>
@@ -600,55 +685,118 @@ export const StatisticsPage = () => {
             </button>
           ))}
         </div>
-        <select
-          value={selectedLink}
-          onChange={event => setSelectedLink(event.target.value)}
-          className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
-        >
-          <option value="all">{t('statistics.allLinks', 'Tous les liens')}</option>
-          {linksQuery.data?.map(link => (
-            <option key={link.id} value={link.id}>
-              {link.slug}
-            </option>
-          ))}
-        </select>
-        <select
-          value={selectedProject}
-          onChange={event => setSelectedProject(event.target.value)}
-          className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
-        >
-          <option value="all">{t('statistics.allProjects', 'Tous les projets')}</option>
-          {projectsQuery.data?.map(project => (
-            <option key={project.id} value={project.id}>
-              {project.name}
-            </option>
-          ))}
-        </select>
-        <button
-          onClick={handleTogglePublic}
-          className={`rounded-md px-3 py-2 text-sm ${
-            selectedLink === 'all'
-              ? 'border border-slate-700 text-slate-500 cursor-not-allowed'
-              : linkDetails?.publicStats
-                ? 'bg-accent/20 text-accent'
-                : 'border border-slate-700 text-slate-300'
-          }`}
-          disabled={selectedLink === 'all'}
-        >
-          {t('statistics.makePublic')}
-        </button>
-        <div className="ml-auto flex flex-col gap-1 text-xs text-muted">
-          <span>{t('statistics.share')}</span>
-          <code className="rounded bg-slate-800 px-2 py-1 text-slate-300">{shareUrl}</code>
-        </div>
+        {adminMode ? (
+          <div className="flex flex-wrap gap-3">
+            <div className="flex min-w-[220px] flex-col gap-1">
+              <select
+                value={selectedAdminWorkspace}
+                onChange={event => setSelectedAdminWorkspace(event.target.value)}
+                className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                aria-label={t('admin.filters.workspace')}
+                disabled={adminWorkspacesLoading}
+                aria-busy={adminWorkspacesLoading}
+              >
+                <option value="all">{t('admin.filters.allWorkspaces')}</option>
+                {adminWorkspaces.map(workspace => (
+                  <option key={workspace.id} value={workspace.id}>
+                    {workspace.name}
+                  </option>
+                ))}
+              </select>
+              {adminWorkspacesError ? (
+                <span className="text-xs text-rose-300">
+                  {t('admin.filters.workspaceError', 'Impossible de charger les workspaces pour les statistiques.')}
+                </span>
+              ) : adminWorkspaces.length === 0 && !adminWorkspacesLoading ? (
+                <span className="text-xs text-blue-300">
+                  {t('admin.filters.noWorkspaces', 'Aucun workspace disponible')}
+                </span>
+              ) : null}
+            </div>
+            <div className="flex min-w-[220px] flex-col gap-1">
+              <select
+                value={selectedAccount}
+                onChange={event => setSelectedAccount(event.target.value)}
+                className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                aria-label={t('admin.filters.account')}
+                disabled={adminUsersLoading}
+                aria-busy={adminUsersLoading}
+              >
+                <option value="all">{t('admin.filters.allAccounts')}</option>
+                {adminUsers.map(account => (
+                  <option key={account.id} value={account.id}>
+                    {account.email}
+                  </option>
+                ))}
+              </select>
+              {adminUsersError ? (
+                <span className="text-xs text-rose-300">
+                  {t('admin.filters.accountError', 'Impossible de charger les comptes disponibles.')}
+                </span>
+              ) : adminUsers.length === 0 && !adminUsersLoading ? (
+                <span className="text-xs text-blue-300">
+                  {t('admin.filters.noAccounts', 'Aucun compte disponible')}
+                </span>
+              ) : null}
+            </div>
+          </div>
+        ) : (
+          <>
+            <select
+              value={selectedLink}
+              onChange={event => setSelectedLink(event.target.value)}
+              className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+            >
+              <option value="all">{t('statistics.allLinks', 'Tous les liens')}</option>
+              {linksQuery.data?.map(link => (
+                <option key={link.id} value={link.id}>
+                  {link.slug}
+                </option>
+              ))}
+            </select>
+            <select
+              value={selectedProject}
+              onChange={event => setSelectedProject(event.target.value)}
+              className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+            >
+              <option value="all">{t('statistics.allProjects', 'Tous les projets')}</option>
+              {projectsQuery.data?.map(project => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={handleTogglePublic}
+              className={`rounded-md px-3 py-2 text-sm ${
+                selectedLink === 'all'
+                  ? 'border border-slate-700 text-slate-500 cursor-not-allowed'
+                  : linkDetails?.publicStats
+                    ? 'bg-accent/20 text-accent'
+                    : 'border border-slate-700 text-slate-300'
+              }`}
+              disabled={selectedLink === 'all'}
+            >
+              {t('statistics.makePublic')}
+            </button>
+            <div className="ml-auto flex flex-col gap-1 text-xs text-muted">
+              <span>{t('statistics.share')}</span>
+              <code className="rounded bg-slate-800 px-2 py-1 text-slate-300">{shareUrl}</code>
+            </div>
+          </>
+        )}
       </section>
 
       <div className="rounded-2xl border border-blue-500/30 bg-gradient-to-r from-black/60 to-blue-900/20 p-5 shadow-inner shadow-blue-500/10">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-white">Filtres des deeplinks</h1>
+            <h1 className="text-2xl font-semibold text-white">
+              {adminMode ? t('admin.analytics.title', 'Global analytics overview') : 'Filtres des deeplinks'}
+            </h1>
             <p className="mt-1 text-sm text-blue-200">
-              Explorez les métriques clés : filtres dynamiques, graphiques détaillés et cartographie interactive.
+              {adminMode
+                ? t('admin.analytics.subtitle', 'Aggregate performance across all workspaces and accounts.')
+                : 'Explorez les métriques clés : filtres dynamiques, graphiques détaillés et cartographie interactive.'}
             </p>
             <p className="mt-3 text-xs text-blue-300/80">{filtersSummary}</p>
           </div>

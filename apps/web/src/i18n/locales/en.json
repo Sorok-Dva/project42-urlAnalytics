@@ -8,7 +8,8 @@
     "statistics": "Statistics",
     "deeplinks": "Deeplinks",
     "qr": "QR Codes",
-    "logout": "Logout"
+    "logout": "Logout",
+    "admin": "Admin"
   },
   "common": {
     "cancel": "Cancel",
@@ -75,7 +76,9 @@
       "transfer": "Transfer",
       "archive": "Archive",
       "unarchive": "Restore",
-      "delete": "Delete"
+      "delete": "Delete",
+      "edit": "Edit",
+      "back": "Back to links"
     },
     "table": {
       "name": "Name",
@@ -123,6 +126,13 @@
       "deleteError": {
         "title": "Unable to delete link"
       },
+      "updated": {
+        "title": "Link updated",
+        "description": "Changes saved successfully."
+      },
+      "updateError": {
+        "title": "Unable to update link"
+      },
       "transferred": {
         "title": "Link transferred",
         "description": "The link has been moved to the selected workspace."
@@ -135,6 +145,96 @@
   "qr": {
     "title": "My QR codes",
     "create": "Create QR"
+  },
+  "admin": {
+    "title": "Administration",
+    "subtitle": "Monitor accounts, adjust workspace limits and manage invitations.",
+    "signupsDisabledNotice": "Public sign-ups are currently disabled. Generate invitation codes to onboard users.",
+    "stats": {
+      "users": "Users",
+      "admins": "Admins",
+      "workspaces": "Workspaces",
+      "links": "Links",
+      "activeLinks": "Active links",
+      "qrCodes": "QR codes",
+      "events": "Total events"
+    },
+    "roles": {
+      "admin": "Administrator",
+      "user": "User"
+    },
+    "recentUsers": {
+      "title": "Recent sign-ups",
+      "description": "Latest accounts created on the platform.",
+      "name": "Name",
+      "email": "Email",
+      "role": "Role",
+      "created": "Created",
+      "lastLogin": "Last login",
+      "empty": "No users found yet.",
+      "never": "Never"
+    },
+    "workspaces": {
+      "title": "Workspace plans",
+      "description": "Update plan tier and resource limits for each workspace.",
+      "empty": "No workspace found.",
+      "columns": {
+        "workspace": "Workspace",
+        "plan": "Plan",
+        "limits": "Limits",
+        "usage": "Usage",
+        "actions": "Actions"
+      },
+      "owner": "Owner: {{email}}",
+      "limits": {
+        "links": "Links",
+        "qr": "QR codes",
+        "members": "Members",
+        "unlimited": "Unlimited"
+      },
+      "usage": {
+        "links": "{{usage}} links (limit: {{total}})",
+        "qr": "{{usage}} QR codes (limit: {{total}})",
+        "members": "{{usage}} members (limit: {{total}})"
+      },
+      "edit": "Edit limits",
+      "updated": "Workspace updated",
+      "updateError": "Unable to update workspace"
+    },
+    "invites": {
+      "title": "Invitation codes",
+      "description": "Generate invitation codes to grant access when sign-ups are restricted.",
+      "placeholder": "Custom code (optional)",
+      "generate": "Create code",
+      "generateRandom": "Generate random",
+      "created": "Invitation created",
+      "createError": "Unable to create invitation",
+      "empty": "No invitation codes generated yet.",
+      "code": "Code",
+      "status": "Status",
+      "generated": "Generated",
+      "usedBy": "Used by",
+      "statusUsed": "Used on {{date}}",
+      "statusUnused": "Unused"
+    },
+    "filters": {
+      "workspace": "Workspace",
+      "account": "Account",
+      "allWorkspaces": "All workspaces",
+      "allAccounts": "All accounts",
+      "workspaceError": "Unable to load workspaces.",
+      "accountError": "Unable to load accounts.",
+      "noWorkspaces": "No workspace available",
+      "noAccounts": "No account available"
+    },
+    "menu": {
+      "dashboard": "Dashboard",
+      "statistics": "Statistics"
+    },
+    "analytics": {
+      "title": "Global analytics",
+      "subtitle": "Aggregate performance across workspaces and accounts."
+    }
   },
   "auth": {
     "title": "Sign in",

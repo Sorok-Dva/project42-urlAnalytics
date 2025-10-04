@@ -21,6 +21,7 @@ describe('auth routes', () => {
     expect(response.status).toBe(201)
     expect(response.body.token).toBeTruthy()
     expect(response.body.user.email).toBe('auth@test.local')
+    expect(response.body.user.role).toBe('user')
     expect(response.body.workspace).toBeTruthy()
   })
 
@@ -44,6 +45,7 @@ describe('auth routes', () => {
 
     expect(response.status).toBe(201)
     expect(response.body.token).toBeTruthy()
+    expect(response.body.user.role).toBe('user')
 
     const invite = await SignupInvite.findOne({ where: { code: 'INVITE-123' } })
     expect(invite?.usedAt).toBeTruthy()

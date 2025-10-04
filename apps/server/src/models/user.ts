@@ -1,7 +1,7 @@
 import { DataTypes, Model, Optional } from 'sequelize'
 import { sequelize } from '../config/database'
 import type { WorkspaceMember } from './workspaceMember'
-import { WorkspaceRole } from '@p42/shared'
+import { WorkspaceRole, UserRole } from '@p42/shared'
 
 export interface UserAttributes {
   id: string
@@ -11,13 +11,14 @@ export interface UserAttributes {
   avatarUrl: string | null
   timezone: string | null
   lastLoginAt: Date | null
+  role: UserRole
   createdAt?: Date
   updatedAt?: Date
 }
 
 export type UserCreationAttributes = Optional<
   UserAttributes,
-  'id' | 'passwordHash' | 'avatarUrl' | 'timezone' | 'lastLoginAt'
+  'id' | 'passwordHash' | 'avatarUrl' | 'timezone' | 'lastLoginAt' | 'role'
 >
 
 export class User extends Model<UserAttributes, UserCreationAttributes> implements UserAttributes {
@@ -28,6 +29,7 @@ export class User extends Model<UserAttributes, UserCreationAttributes> implemen
   declare avatarUrl: string | null
   declare timezone: string | null
   declare lastLoginAt: Date | null
+  declare role: UserRole
   declare readonly createdAt: Date
   declare readonly updatedAt: Date
 
@@ -84,6 +86,11 @@ User.init(
     lastLoginAt: {
       type: DataTypes.DATE,
       allowNull: true
+    },
+    role: {
+      type: DataTypes.STRING(20),
+      allowNull: false,
+      defaultValue: 'user'
     }
   },
   {
