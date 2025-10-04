@@ -9,6 +9,8 @@ import type {
   AnalyticsPoint,
   AnalyticsTimeBucket,
   WorkspaceSummary,
+  WorkspaceDetail,
+  WorkspaceUsage,
   WorkspaceMemberSummary,
   WorkspaceRole,
   WorkspacePlanLimits,
@@ -118,6 +120,8 @@ export type {
   AnalyticsPoint,
   AnalyticsTimeBucket,
   WorkspaceSummary,
+  WorkspaceDetail,
+  WorkspaceUsage,
   WorkspaceMemberSummary,
   WorkspaceRole
 }

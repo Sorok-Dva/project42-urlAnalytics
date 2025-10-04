@@ -37,16 +37,18 @@ export const registerUser = async (
   }, { transaction })
 
   const workspace = await Workspace.create({
-    name: `${payload.name} workspace`,
+    name: 'Personnel',
     slug: `ws-${nanoid(10)}`,
     ownerId: user.id,
     plan: 'free',
     planLimits: {
-      links: 1000,
+      links: 10,
       qrCodes: 500,
-      members: 5
+      members: 5,
+      workspaces: 1
     },
-    isActive: true
+    isActive: true,
+    isDefault: true
   }, { transaction })
 
   await WorkspaceMember.create({

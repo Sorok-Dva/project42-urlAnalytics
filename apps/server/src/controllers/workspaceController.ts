@@ -8,7 +8,11 @@ import {
   inviteWorkspaceMember,
   findWorkspaceMembership,
   getWorkspace,
-  renameWorkspace
+  renameWorkspace,
+  getWorkspaceUsage,
+  transferWorkspaceAssets,
+  purgeWorkspaceAssets,
+  findDefaultWorkspaceForOwner
 } from '../services/workspaceService'
 import { listDomains } from '../services/domainService'
 
@@ -32,7 +36,8 @@ export const create = asyncHandler(async (req: Request, res: Response) => {
       planLimits: workspace.planLimits,
       isActive: workspace.isActive,
       role: 'owner' as const,
-      memberStatus: 'active' as const
+      memberStatus: 'active' as const,
+      isDefault: workspace.isDefault
     }
   res.status(201).json({ workspace: summary })
 })
@@ -42,6 +47,7 @@ export const detail = asyncHandler(async (req: Request, res: Response) => {
   const workspace = await getWorkspace(req.params.id)
   const membership = await findWorkspaceMembership(workspace.id, req.currentUser.id)
   if (!membership) return res.status(404).json({ error: 'Workspace not found' })
+  const usage = await getWorkspaceUsage(workspace.id)
   const summary = {
     id: workspace.id,
     name: workspace.name,
@@ -50,7 +56,9 @@ export const detail = asyncHandler(async (req: Request, res: Response) => {
     planLimits: workspace.planLimits,
     isActive: workspace.isActive,
     role: membership.role,
-    memberStatus: membership.status
+    memberStatus: membership.status,
+    isDefault: workspace.isDefault,
+    usage
   }
   res.json({ workspace: summary })
 })
@@ -129,4 +137,66 @@ export const domains = asyncHandler(async (req: Request, res: Response) => {
 
   const domains = await listDomains(workspaceId)
   res.json({ domains })
+})
+
+export const remove = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.currentUser) return res.status(401).json({ error: 'Unauthorized' })
+  const workspaceId = req.params.id
+  const membership = await findWorkspaceMembership(workspaceId, req.currentUser.id)
+  if (!membership) return res.status(404).json({ error: 'Workspace not found' })
+  if (membership.role !== 'owner') {
+    return res.status(403).json({ error: 'Only workspace owners can delete a workspace.' })
+  }
+
+  const workspace = await getWorkspace(workspaceId)
+  if (workspace.isDefault) {
+    return res.status(400).json({ error: 'Default workspace cannot be deleted.' })
+  }
+
+  const usage = await getWorkspaceUsage(workspaceId)
+  const hasContent = usage.links > 0 || usage.qrCodes > 0 || usage.analytics > 0
+
+  const { strategy, targetWorkspaceId } = (req.body ?? {}) as {
+    strategy?: 'transfer' | 'purge'
+    targetWorkspaceId?: string
+  }
+
+  if (!hasContent) {
+    await purgeWorkspaceAssets(workspaceId)
+    return res.status(200).json({ status: 'purged', workspaceId, strategy: 'purge' })
+  }
+
+  if (strategy === 'transfer') {
+    let resolvedTarget = targetWorkspaceId?.trim()
+    if (!resolvedTarget) {
+      const fallback = await findDefaultWorkspaceForOwner(req.currentUser.id, { excludeWorkspaceId: workspaceId })
+      if (!fallback) {
+        return res.status(400).json({ error: 'No fallback workspace available for transfer.' })
+      }
+      resolvedTarget = fallback.id
+    }
+
+    if (resolvedTarget === workspaceId) {
+      return res.status(400).json({ error: 'Target workspace must be different from the source workspace.' })
+    }
+
+    const targetMembership = await findWorkspaceMembership(resolvedTarget, req.currentUser.id)
+    if (!targetMembership) {
+      return res.status(404).json({ error: 'Target workspace not found.' })
+    }
+
+    if (!['owner', 'admin'].includes(targetMembership.role)) {
+      return res.status(403).json({ error: 'Insufficient permissions on target workspace.' })
+    }
+
+    await transferWorkspaceAssets({ sourceWorkspaceId: workspaceId, targetWorkspaceId: resolvedTarget })
+    return res.status(200).json({ status: 'transferred', workspaceId, targetWorkspaceId: resolvedTarget })
+  }
+
+  if (strategy === 'purge') {
+    await purgeWorkspaceAssets(workspaceId)
+    return res.status(200).json({ status: 'purged', workspaceId })
+  }
+
+  return res.status(400).json({ error: 'Invalid deletion strategy for non-empty workspace.' })
 })

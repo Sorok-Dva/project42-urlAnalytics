@@ -118,10 +118,14 @@ export const fetchEventsForInterval = async (filters: {
   page?: number
   pageSize?: number
   filters?: AnalyticsFilters
+  includeSoftDeleted?: boolean
 }) => {
   const start = intervalToStart(filters.interval)
   const where: Record<string, unknown> = {
     occurredAt: { [Op.gte]: start }
+  }
+  if (!filters.includeSoftDeleted) {
+    where.softDeleted = false
   }
   if (filters.workspaceId) {
     where.workspaceId = filters.workspaceId

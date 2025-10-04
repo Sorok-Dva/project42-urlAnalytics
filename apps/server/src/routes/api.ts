@@ -43,6 +43,7 @@ router.get('/workspaces/:id/members', workspaceController.members)
 router.post('/workspaces/:id/members', workspaceController.invite)
 router.patch('/workspaces/:id', workspaceController.update)
 router.get('/workspaces/:id/domains', workspaceController.domains)
+router.delete('/workspaces/:id', workspaceController.remove)
 
 router.get('/dashboard', dashboardController.overview)
 

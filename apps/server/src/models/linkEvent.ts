@@ -25,6 +25,7 @@ export interface LinkEventAttributes {
   occurredAt: Date
   metadata: Record<string, unknown> | null
   utm: Record<string, string | null> | null
+  softDeleted: boolean
   createdAt?: Date
   updatedAt?: Date
 }
@@ -48,6 +49,7 @@ export type LinkEventCreationAttributes = Optional<
   | 'userAgent'
   | 'metadata'
   | 'utm'
+  | 'softDeleted'
 >
 
 export class LinkEvent
@@ -75,6 +77,7 @@ export class LinkEvent
   declare occurredAt: Date
   declare metadata: Record<string, unknown> | null
   declare utm: Record<string, string | null> | null
+  declare softDeleted: boolean
   declare readonly createdAt: Date
   declare readonly updatedAt: Date
 }
@@ -166,6 +169,12 @@ LinkEvent.init(
     utm: {
       type: DataTypes.JSON,
       allowNull: true
+    },
+    softDeleted: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      field: 'is_soft_deleted'
     }
   },
   {

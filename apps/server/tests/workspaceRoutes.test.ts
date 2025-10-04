@@ -1,11 +1,16 @@
 import request from 'supertest'
 import { beforeEach, describe, expect, test } from 'vitest'
 import { createApp } from '../src/app'
+import { Workspace } from '../src/models/workspace'
+import { Link } from '../src/models/link'
+import { LinkEvent } from '../src/models/linkEvent'
+import { QrCode } from '../src/models/qrCode'
 
 const app = createApp()
 
 let ownerToken: string
 let ownerWorkspaceId: string
+let ownerUserId: string
 const ownerCredentials = {
   email: 'owner@test.local',
   password: 'password123'
@@ -20,6 +25,16 @@ beforeEach(async () => {
 
   ownerToken = response.body.token
   ownerWorkspaceId = response.body.workspace.id
+  ownerUserId = response.body.user.id
+
+  const workspace = await Workspace.findByPk(ownerWorkspaceId)
+  if (workspace) {
+    const limits = {
+      ...(workspace.planLimits as Record<string, unknown>),
+      workspaces: 5
+    }
+    await workspace.update({ planLimits: limits })
+  }
 })
 
 describe('workspace routes', () => {
@@ -42,6 +57,26 @@ describe('workspace routes', () => {
 
     expect(listResponse.status).toBe(200)
     expect(listResponse.body.workspaces).toHaveLength(2)
+  })
+
+  test('rejects workspace creation when limit reached', async () => {
+    const workspace = await Workspace.findByPk(ownerWorkspaceId)
+    if (workspace) {
+      await workspace.update({
+        planLimits: {
+          ...(workspace.planLimits as Record<string, unknown>),
+          workspaces: 1
+        }
+      })
+    }
+
+    const response = await request(app)
+      .post('/api/workspaces')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ name: 'Limit Test Workspace' })
+
+    expect(response.status).toBe(400)
+    expect(response.body.error).toBe('Workspace creation limit reached')
   })
 
   test('allows renaming a workspace', async () => {
@@ -121,6 +156,175 @@ describe('workspace routes', () => {
       .send({ email: 'unknown@test.local', role: 'member' })
 
     expect(inviteResponse.status).toBe(404)
+  })
+
+  test('prevents deleting the default workspace', async () => {
+    const response = await request(app)
+      .delete(`/api/workspaces/${ownerWorkspaceId}`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send()
+
+    expect(response.status).toBe(400)
+    expect(response.body.error).toBe('Default workspace cannot be deleted.')
+  })
+
+  test('deletes an empty workspace successfully', async () => {
+    const createResponse = await request(app)
+      .post('/api/workspaces')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ name: 'Temp Workspace' })
+
+    expect(createResponse.status).toBe(201)
+    const tempWorkspaceId = createResponse.body.workspace.id as string
+
+    const deleteResponse = await request(app)
+      .delete(`/api/workspaces/${tempWorkspaceId}`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send()
+
+    expect(deleteResponse.status).toBe(200)
+    expect(deleteResponse.body.status).toBe('purged')
+
+    const listResponse = await request(app)
+      .get('/api/workspaces')
+      .set('Authorization', `Bearer ${ownerToken}`)
+
+    expect(listResponse.status).toBe(200)
+    expect(listResponse.body.workspaces.some((workspace: any) => workspace.id === tempWorkspaceId)).toBe(false)
+  })
+
+  test('purges workspace data and soft deletes analytics', async () => {
+    const createResponse = await request(app)
+      .post('/api/workspaces')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ name: 'Purge Workspace' })
+
+    const purgeWorkspaceId = createResponse.body.workspace.id as string
+
+    const link = await Link.create({
+      workspaceId: purgeWorkspaceId,
+      projectId: null,
+      domainId: null,
+      slug: 'purge-link',
+      originalUrl: 'https://example.com/purge',
+      createdById: ownerUserId,
+      publicStats: false,
+      comment: null,
+      label: null,
+      geoRules: [],
+      metadata: null,
+      utm: null
+    })
+
+    await LinkEvent.create({
+      workspaceId: purgeWorkspaceId,
+      projectId: null,
+      linkId: link.id,
+      eventType: 'click',
+      referer: null,
+      device: null,
+      os: null,
+      browser: null,
+      language: null,
+      country: null,
+      city: null,
+      continent: null,
+      latitude: null,
+      longitude: null,
+      isBot: false,
+      ipHash: null,
+      userAgent: null,
+      occurredAt: new Date(),
+      metadata: null,
+      utm: null
+    })
+
+    const deleteResponse = await request(app)
+      .delete(`/api/workspaces/${purgeWorkspaceId}`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ strategy: 'purge' })
+
+    expect(deleteResponse.status).toBe(200)
+    expect(deleteResponse.body.status).toBe('purged')
+
+    const events = await LinkEvent.findAll({ where: { workspaceId: purgeWorkspaceId } })
+    expect(events.length).toBeGreaterThan(0)
+    expect(events.every(event => event.softDeleted)).toBe(true)
+  })
+
+  test('transfers workspace content to another workspace', async () => {
+    const createResponse = await request(app)
+      .post('/api/workspaces')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ name: 'Transfer Workspace' })
+
+    const transferWorkspaceId = createResponse.body.workspace.id as string
+
+    const link = await Link.create({
+      workspaceId: transferWorkspaceId,
+      projectId: null,
+      domainId: null,
+      slug: 'transfer-link',
+      originalUrl: 'https://example.com/move',
+      createdById: ownerUserId,
+      publicStats: false,
+      comment: null,
+      label: null,
+      geoRules: [],
+      metadata: null,
+      utm: null
+    })
+
+    await QrCode.create({
+      workspaceId: transferWorkspaceId,
+      projectId: null,
+      linkId: link.id,
+      name: 'Transfer QR',
+      code: `transfer-qr-${link.id}`,
+      design: {},
+      createdById: ownerUserId
+    })
+
+    await LinkEvent.create({
+      workspaceId: transferWorkspaceId,
+      projectId: null,
+      linkId: link.id,
+      eventType: 'scan',
+      referer: null,
+      device: null,
+      os: null,
+      browser: null,
+      language: null,
+      country: null,
+      city: null,
+      continent: null,
+      latitude: null,
+      longitude: null,
+      isBot: false,
+      ipHash: null,
+      userAgent: null,
+      occurredAt: new Date(),
+      metadata: null,
+      utm: null
+    })
+
+    const deleteResponse = await request(app)
+      .delete(`/api/workspaces/${transferWorkspaceId}`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ strategy: 'transfer', targetWorkspaceId: ownerWorkspaceId })
+
+    expect(deleteResponse.status).toBe(200)
+    expect(deleteResponse.body.status).toBe('transferred')
+
+    const movedLink = await Link.findByPk(link.id)
+    expect(movedLink?.workspaceId).toBe(ownerWorkspaceId)
+    expect(movedLink?.projectId).toBeNull()
+
+    const movedQrCodes = await QrCode.findAll({ where: { code: `transfer-qr-${link.id}` } })
+    expect(movedQrCodes[0]?.workspaceId).toBe(ownerWorkspaceId)
+
+    const events = await LinkEvent.findAll({ where: { linkId: link.id } })
+    expect(events.every(event => !event.softDeleted && event.workspaceId === ownerWorkspaceId)).toBe(true)
   })
 
   test('transfers links and qr codes between workspaces', async () => {

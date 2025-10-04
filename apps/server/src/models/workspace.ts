@@ -9,11 +9,12 @@ export interface WorkspaceAttributes {
   plan: 'free' | 'pro' | 'enterprise'
   planLimits: Record<string, unknown>
   isActive: boolean
+  isDefault: boolean
   createdAt?: Date
   updatedAt?: Date
 }
 
-export type WorkspaceCreationAttributes = Optional<WorkspaceAttributes, 'id' | 'plan' | 'planLimits' | 'isActive'>
+export type WorkspaceCreationAttributes = Optional<WorkspaceAttributes, 'id' | 'plan' | 'planLimits' | 'isActive' | 'isDefault'>
 
 export class Workspace extends Model<WorkspaceAttributes, WorkspaceCreationAttributes> implements WorkspaceAttributes {
   declare id: string
@@ -23,6 +24,7 @@ export class Workspace extends Model<WorkspaceAttributes, WorkspaceCreationAttri
   declare plan: 'free' | 'pro' | 'enterprise'
   declare planLimits: Record<string, unknown>
   declare isActive: boolean
+  declare isDefault: boolean
   declare readonly createdAt: Date
   declare readonly updatedAt: Date
 
@@ -68,13 +70,19 @@ Workspace.init(
       defaultValue: {
         links: 1000,
         qrCodes: 500,
-        members: 10
+        members: 10,
+        workspaces: 1
       }
     },
     isActive: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: true
+    },
+    isDefault: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false
     }
   },
   {

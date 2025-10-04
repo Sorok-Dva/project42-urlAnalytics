@@ -709,7 +709,8 @@ export const getAdminAnalytics = async (params: {
     page: params.page,
     pageSize: params.pageSize,
     filters: params.filters,
-    userId: params.userId
+    userId: params.userId,
+    includeSoftDeleted: true
   })
   return buildAnalyticsSnapshot(events, params)
 }

@@ -22,7 +22,8 @@ const updateWorkspaceSchema = z.object({
     .object({
       links: z.number().int().positive().optional(),
       qrCodes: z.number().int().positive().optional(),
-      members: z.number().int().positive().optional()
+      members: z.number().int().positive().optional(),
+      workspaces: z.number().int().positive().optional()
     })
     .partial()
     .optional()

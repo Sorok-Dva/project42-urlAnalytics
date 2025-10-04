@@ -44,7 +44,7 @@ export const AdminDashboardPage = () => {
   const stats = statsData ?? null
 
   const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(null)
-  const [editingForm, setEditingForm] = useState({ plan: 'free', links: '', qrCodes: '', members: '' })
+  const [editingForm, setEditingForm] = useState({ plan: 'free', links: '', qrCodes: '', members: '', workspaces: '' })
   const [inviteCode, setInviteCode] = useState('')
 
   const getLimitLabel = useCallback(
@@ -63,18 +63,21 @@ export const AdminDashboardPage = () => {
       plan: workspace.plan,
       links: workspace.planLimits?.links ? String(workspace.planLimits.links) : '',
       qrCodes: workspace.planLimits?.qrCodes ? String(workspace.planLimits.qrCodes) : '',
-      members: workspace.planLimits?.members ? String(workspace.planLimits.members) : ''
+      members: workspace.planLimits?.members ? String(workspace.planLimits.members) : '',
+      workspaces: workspace.planLimits?.workspaces ? String(workspace.planLimits.workspaces) : ''
     })
   }, [])
 
   const cancelWorkspaceEdit = useCallback(() => {
     setEditingWorkspaceId(null)
-    setEditingForm({ plan: 'free', links: '', qrCodes: '', members: '' })
+    setEditingForm({ plan: 'free', links: '', qrCodes: '', members: '', workspaces: '' })
   }, [])
 
   const updateWorkspaceMutation = useMutation({
-    mutationFn: (params: { id: string; payload: { plan?: 'free' | 'pro' | 'enterprise'; planLimits?: { links?: number; qrCodes?: number; members?: number } } }) =>
-      updateAdminWorkspace(params.id, params.payload),
+    mutationFn: (params: {
+      id: string
+      payload: { plan?: 'free' | 'pro' | 'enterprise'; planLimits?: { links?: number; qrCodes?: number; members?: number; workspaces?: number } }
+    }) => updateAdminWorkspace(params.id, params.payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'workspaces'] })
       cancelWorkspaceEdit()
@@ -99,12 +102,15 @@ export const AdminDashboardPage = () => {
 
   const handleWorkspaceSave = useCallback(
     (workspace: AdminWorkspaceSummary) => {
-      const payload: { plan?: 'free' | 'pro' | 'enterprise'; planLimits?: { links?: number; qrCodes?: number; members?: number } } = {}
+      const payload: {
+        plan?: 'free' | 'pro' | 'enterprise'
+        planLimits?: { links?: number; qrCodes?: number; members?: number; workspaces?: number }
+      } = {}
       if (editingForm.plan && editingForm.plan !== workspace.plan) {
         payload.plan = editingForm.plan as 'free' | 'pro' | 'enterprise'
       }
 
-      const limits: { links?: number; qrCodes?: number; members?: number } = {}
+      const limits: { links?: number; qrCodes?: number; members?: number; workspaces?: number } = {}
       const parseLimit = (value: string) => {
         const trimmed = value.trim()
         if (!trimmed) return undefined
@@ -115,10 +121,12 @@ export const AdminDashboardPage = () => {
       const linksLimit = parseLimit(editingForm.links)
       const qrLimit = parseLimit(editingForm.qrCodes)
       const membersLimit = parseLimit(editingForm.members)
+      const workspacesLimit = parseLimit(editingForm.workspaces)
 
       if (linksLimit !== undefined) limits.links = linksLimit
       if (qrLimit !== undefined) limits.qrCodes = qrLimit
       if (membersLimit !== undefined) limits.members = membersLimit
+      if (workspacesLimit !== undefined) limits.workspaces = workspacesLimit
 
       if (Object.keys(limits).length > 0) {
         payload.planLimits = limits
@@ -304,12 +312,27 @@ export const AdminDashboardPage = () => {
                                 placeholder="∞"
                               />
                             </label>
+                            <label className="flex items-center gap-2">
+                              <span className="w-20 text-slate-400">{t('admin.workspaces.limits.workspaces', 'Espaces de travail')}</span>
+                              <input
+                                type="number"
+                                min={1}
+                                value={editingForm.workspaces}
+                                onChange={event => setEditingForm(prev => ({ ...prev, workspaces: event.target.value }))}
+                                className="w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-accent focus:outline-none"
+                                placeholder="∞"
+                              />
+                            </label>
                           </div>
                         ) : (
                           <div className="space-y-1 text-xs text-slate-400">
                             <div>{t('admin.workspaces.limits.links')}: {getLimitLabel(workspace.planLimits?.links)}</div>
                             <div>{t('admin.workspaces.limits.qr')}: {getLimitLabel(workspace.planLimits?.qrCodes)}</div>
                             <div>{t('admin.workspaces.limits.members')}: {getLimitLabel(workspace.planLimits?.members)}</div>
+                            <div>
+                              {t('admin.workspaces.limits.workspaces', 'Espaces de travail')}:{' '}
+                              {getLimitLabel(workspace.planLimits?.workspaces)}
+                            </div>
                           </div>
                         )}
                       </td>

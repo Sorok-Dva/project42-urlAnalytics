@@ -1,5 +1,10 @@
 import { apiClient } from './client'
-import type { WorkspaceSummary, WorkspaceMemberSummary, WorkspaceRole } from '../types'
+import type {
+  WorkspaceSummary,
+  WorkspaceDetail,
+  WorkspaceMemberSummary,
+  WorkspaceRole
+} from '../types'
 
 export const fetchWorkspaces = async () => {
   const response = await apiClient.get('/workspaces')
@@ -13,7 +18,7 @@ export const createWorkspaceRequest = async (payload: { name: string }) => {
 
 export const fetchWorkspaceDetail = async (workspaceId: string) => {
   const response = await apiClient.get(`/workspaces/${workspaceId}`)
-  return response.data.workspace as WorkspaceSummary
+  return response.data.workspace as WorkspaceDetail
 }
 
 export const fetchWorkspaceMembers = async (workspaceId: string) => {
@@ -37,4 +42,18 @@ export const updateWorkspaceRequest = async (workspaceId: string, payload: { nam
 export const fetchWorkspaceDomains = async (workspaceId: string) => {
   const response = await apiClient.get(`/workspaces/${workspaceId}/domains`)
   return response.data.domains as Array<{ id: string; domain: string; status: string }>
+}
+
+export const deleteWorkspaceRequest = async (
+  workspaceId: string,
+  payload?: { strategy?: 'transfer' | 'purge'; targetWorkspaceId?: string }
+) => {
+  const response = await apiClient.delete(`/workspaces/${workspaceId}`, {
+    data: payload
+  })
+  return response.data as {
+    status: 'purged' | 'transferred'
+    workspaceId: string
+    targetWorkspaceId?: string
+  }
 }

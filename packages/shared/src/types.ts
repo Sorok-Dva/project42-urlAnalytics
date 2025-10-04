@@ -47,7 +47,15 @@ export interface WorkspacePlanLimits {
   links?: number
   qrCodes?: number
   members?: number
+  workspaces?: number
   [key: string]: unknown
+}
+
+export interface WorkspaceUsage {
+  links: number
+  activeLinks: number
+  qrCodes: number
+  analytics: number
 }
 
 export interface WorkspaceSummary {
@@ -59,6 +67,11 @@ export interface WorkspaceSummary {
   isActive: boolean
   role: WorkspaceRole
   memberStatus: WorkspaceMemberStatus
+  isDefault: boolean
+}
+
+export interface WorkspaceDetail extends WorkspaceSummary {
+  usage: WorkspaceUsage
 }
 
 export interface WorkspaceMemberSummary {
