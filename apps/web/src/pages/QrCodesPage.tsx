@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { fetchQrCodes, createQrCode, deleteQrCode, transferQrCodeRequest } from '../api/qr'
 import { useToast } from '../providers/ToastProvider'
-import { fetchLinks } from '../api/links'
+import { fetchAllLinks } from '../api/links'
 import { fetchDomains } from '../api/domains'
 import { getApiErrorMessage } from '../lib/apiError'
 import { QrPreview } from '../components/QrPreview'
@@ -41,7 +41,7 @@ export const QrCodesPage = () => {
   const linkQuery = useQuery({
     queryKey: ['links', workspaceId, 'for-qr'],
     enabled: Boolean(token && workspaceId),
-    queryFn: () => fetchLinks({ status: 'active' })
+    queryFn: () => fetchAllLinks({ status: 'active' })
   })
   const domainsQuery = useQuery({
     queryKey: ['domains', workspaceId],
@@ -278,18 +278,18 @@ export const QrCodesPage = () => {
         </div>
       </form>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {qrQuery.data?.map(qr => {
           const design = sanitizeDesign(qr.design as QrDesign)
           const target = `${baseUrl.replace(/\/$/, '')}/qr/${qr.code}`
           return (
-            <div key={qr.id} className="rounded-2xl border border-slate-800/70 bg-slate-900/40 p-5">
+            <div key={qr.id} className="rounded-2xl border border-slate-800/70 bg-slate-900/40 p-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-slate-100">{qr.name}</h3>
                 <span className="text-xs text-muted">{qr.totalScans} scans</span>
               </div>
-              <div className="mt-4 flex items-center justify-center rounded-lg border border-slate-800 bg-slate-950/60 p-4">
-                <QrPreview data={target} design={design} size={180} />
+              <div className="mt-3 flex items-center justify-center rounded-lg border border-slate-800 bg-slate-950/60 p-3">
+                <QrPreview data={target} design={design} size={140} />
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
@@ -297,6 +297,12 @@ export const QrCodesPage = () => {
                   className="rounded-md border border-slate-700 px-3 py-2 text-xs text-slate-200 hover:border-accent"
                 >
                   Télécharger PNG
+                </button>
+                <button
+                  onClick={() => handleDownload(qr, 'jpg')}
+                  className="rounded-md border border-slate-700 px-3 py-2 text-xs text-slate-200 hover:border-accent"
+                >
+                  Télécharger JPG
                 </button>
                 <button
                   onClick={() => handleDownload(qr, 'svg')}

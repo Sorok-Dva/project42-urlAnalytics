@@ -169,6 +169,8 @@ export const listLinks = async (
     projectId?: string
     search?: string
     sort?: 'recent' | 'performance' | 'old'
+    page?: number
+    pageSize?: number
   }
 ) => {
   const where: any = { workspaceId }
@@ -194,7 +196,26 @@ export const listLinks = async (
     }
   })()
 
-  return Link.findAll({ where, order, include: [{ model: Domain, as: 'domain' }] })
+  const page =
+    typeof filters.page === 'number' && Number.isFinite(filters.page) && filters.page > 0
+      ? Math.floor(filters.page)
+      : 1
+  const pageSize =
+    typeof filters.pageSize === 'number' && Number.isFinite(filters.pageSize) && filters.pageSize > 0
+      ? Math.min(Math.floor(filters.pageSize), 100)
+      : 25
+  const offset = (page - 1) * pageSize
+
+  const { rows, count } = await Link.findAndCountAll({
+    where,
+    order,
+    include: [{ model: Domain, as: 'domain' }],
+    distinct: true,
+    limit: pageSize,
+    offset
+  })
+
+  return { links: rows, total: count, page, pageSize }
 }
 
 const resolveDomainOrThrow = async (workspaceId: string, domainName: string) => {
@@ -881,6 +902,35 @@ export const transferLinkToWorkspace = async (payload: {
 
   await link.reload({ include: [{ model: Domain, as: 'domain' }] })
   return link
+}
+
+export const transferLinksToWorkspaceBulk = async (payload: {
+  linkIds: string[]
+  sourceWorkspaceId: string
+  targetWorkspaceId: string
+  requestedById: string
+  domain?: string | null
+  projectId?: string | null
+}) => {
+  const uniqueIds = Array.from(new Set(payload.linkIds.filter(id => typeof id === 'string' && id.trim().length > 0)))
+  if (uniqueIds.length === 0) {
+    return []
+  }
+
+  const transferred: Link[] = []
+  for (const linkId of uniqueIds) {
+    const link = await transferLinkToWorkspace({
+      linkId,
+      sourceWorkspaceId: payload.sourceWorkspaceId,
+      targetWorkspaceId: payload.targetWorkspaceId,
+      requestedById: payload.requestedById,
+      domain: payload.domain ?? null,
+      projectId: payload.projectId ?? null
+    })
+    transferred.push(link)
+  }
+
+  return transferred
 }
 
 export const getLinkShareUrl = (link: Link) => {

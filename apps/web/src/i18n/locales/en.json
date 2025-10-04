@@ -87,6 +87,47 @@
       "status": "Status",
       "actions": "Actions"
     },
+    "count": "{{count}} link",
+    "count_plural": "{{count}} links",
+    "pagination": {
+      "page": "Page {{page}} of {{totalPages}}",
+      "range": "Showing {{start}}-{{end}} of {{total}} links",
+      "previous": "Previous",
+      "next": "Next",
+      "empty": "No links to display"
+    },
+    "selection": {
+      "title": "{{count}} link selected",
+      "title_plural": "{{count}} links selected",
+      "subtitle": "Choose an action for the selected links.",
+      "transfer": "Transfer selection",
+      "closeTransfer": "Hide transfer panel",
+      "clear": "Clear selection",
+      "selectAll": "Select all links on this page",
+      "checkbox": "Select {{name}}"
+    },
+    "bulk": {
+      "destination": "Destination",
+      "useExisting": "Use existing workspace",
+      "createNew": "Create new workspace",
+      "targetWorkspace": "Target workspace",
+      "noWorkspace": "You have no other workspace yet.",
+      "newWorkspaceName": "New workspace name",
+      "newWorkspacePlaceholder": "Workspace name",
+      "domain": "Domain",
+      "domainPlaceholder": "Custom domain (optional)",
+      "domainHelp": "Leave empty to keep each link's current domain when possible.",
+      "loadingDomains": "Loading domains...",
+      "noDomain": "No domain available in the selected workspace.",
+      "summary": "Transfers {{count}} links to the selected workspace.",
+      "submit": "Transfer {{count}} links",
+      "submitting": "Transferring...",
+      "errors": {
+        "nameRequired": "Please provide a workspace name.",
+        "workspaceRequired": "Select a target workspace.",
+        "createWorkspaceFailed": "Unable to create workspace"
+      }
+    },
     "transfer": {
       "title": "Transfer {{name}}",
       "description": "Move this link to another workspace.",
@@ -139,6 +180,13 @@
       },
       "transferError": {
         "title": "Transfer failed"
+      },
+      "bulkTransferred": {
+        "title": "Links transferred",
+        "description": "{{count}} links moved to the selected workspace."
+      },
+      "bulkTransferError": {
+        "title": "Bulk transfer failed"
       }
     }
   },

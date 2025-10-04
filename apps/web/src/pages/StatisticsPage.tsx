@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { BarChart3, RefreshCcw, ChevronDown } from 'lucide-react'
 import { useAuth } from '../stores/auth'
 import type { AnalyticsAggregation, AnalyticsFilters } from '../types'
-import { fetchLinks, fetchLinkDetails, toggleLinkPublicStats, exportLinkStats } from '../api/links'
+import { fetchAllLinks, fetchLinkDetails, toggleLinkPublicStats, exportLinkStats } from '../api/links'
 import { fetchProjects } from '../api/projects'
 import { fetchEventsAnalytics } from '../api/events'
 import { DataTable } from '../components/DataTable'
@@ -30,7 +30,7 @@ import {
   YAxis
 } from 'recharts'
 import { LineChart } from '../components/LineChart'
-import type { AnalyticsFilterGroup, AdminWorkspaceSummary, AdminUserSummary } from '../types'
+import type { AnalyticsFilterGroup } from '../types'
 import type { AggregationInterval } from '@p42/shared'
 import { fetchAdminAnalytics, fetchAdminUsers, fetchAdminWorkspaces } from '../api/admin'
 
@@ -239,7 +239,7 @@ export const StatisticsPage = ({ mode = 'default' }: { mode?: 'default' | 'admin
 
   const linksQuery = useQuery({
     queryKey: ['links', workspaceId, 'statistics'],
-    queryFn: () => fetchLinks({ status: 'active' }),
+    queryFn: () => fetchAllLinks({ status: 'active' }),
     enabled: !adminMode && Boolean(token && workspaceId)
   })
   const projectsQuery = useQuery({

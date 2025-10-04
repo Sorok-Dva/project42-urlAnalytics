@@ -87,6 +87,47 @@
       "status": "Statut",
       "actions": "Actions"
     },
+    "count": "{{count}} lien",
+    "count_plural": "{{count}} liens",
+    "pagination": {
+      "page": "Page {{page}} sur {{totalPages}}",
+      "range": "Affichage {{start}}-{{end}} sur {{total}} liens",
+      "previous": "Précédent",
+      "next": "Suivant",
+      "empty": "Aucun lien à afficher"
+    },
+    "selection": {
+      "title": "{{count}} lien sélectionné",
+      "title_plural": "{{count}} liens sélectionnés",
+      "subtitle": "Choisissez une action pour la sélection.",
+      "transfer": "Transférer la sélection",
+      "closeTransfer": "Masquer le panneau de transfert",
+      "clear": "Vider la sélection",
+      "selectAll": "Sélectionner tous les liens de cette page",
+      "checkbox": "Sélectionner {{name}}"
+    },
+    "bulk": {
+      "destination": "Destination",
+      "useExisting": "Utiliser un espace existant",
+      "createNew": "Créer un nouvel espace",
+      "targetWorkspace": "Espace cible",
+      "noWorkspace": "Vous n'avez pas encore d'autre espace.",
+      "newWorkspaceName": "Nom du nouvel espace",
+      "newWorkspacePlaceholder": "Nom de l'espace",
+      "domain": "Domaine",
+      "domainPlaceholder": "Domaine personnalisé (optionnel)",
+      "domainHelp": "Laissez vide pour conserver le domaine actuel quand c'est possible.",
+      "loadingDomains": "Chargement des domaines...",
+      "noDomain": "Aucun domaine disponible dans cet espace.",
+      "summary": "Transfert de {{count}} liens vers l'espace sélectionné.",
+      "submit": "Transférer {{count}} liens",
+      "submitting": "Transfert en cours...",
+      "errors": {
+        "nameRequired": "Veuillez indiquer un nom d'espace.",
+        "workspaceRequired": "Sélectionnez un espace cible.",
+        "createWorkspaceFailed": "Impossible de créer l'espace"
+      }
+    },
     "transfer": {
       "title": "Transférer {{name}}",
       "description": "Déplacez ce lien vers un autre espace de travail.",
@@ -139,6 +180,13 @@
       },
       "transferError": {
         "title": "Transfert échoué"
+      },
+      "bulkTransferred": {
+        "title": "Liens transférés",
+        "description": "{{count}} liens ont été déplacés vers l'espace sélectionné."
+      },
+      "bulkTransferError": {
+        "title": "Échec du transfert multiple"
       }
     }
   },

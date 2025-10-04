@@ -1,9 +1,61 @@
 import { apiClient } from './client'
 import type { Link, AnalyticsAggregation } from '../types'
 
-export const fetchLinks = async (params?: Record<string, string | number | undefined>) => {
+export interface PaginatedLinksResponse {
+  links: Link[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export const fetchLinks = async (
+  params?: Record<string, string | number | undefined>
+): Promise<PaginatedLinksResponse> => {
   const response = await apiClient.get('/links', { params })
-  return response.data.links as Link[]
+  const links = (response.data.links ?? []) as Link[]
+  const totalRaw = response.data.total
+  const pageRaw = response.data.page
+  const pageSizeRaw = response.data.pageSize
+
+  const total = typeof totalRaw === 'number' ? totalRaw : Number(totalRaw ?? links.length ?? 0)
+  const page = typeof pageRaw === 'number' ? pageRaw : Number(pageRaw ?? params?.page ?? 1)
+  const inferredPageSize =
+    typeof params?.pageSize === 'number' ? params?.pageSize : Number(params?.pageSize ?? 0)
+  const pageSize =
+    typeof pageSizeRaw === 'number'
+      ? pageSizeRaw
+      : inferredPageSize > 0
+        ? inferredPageSize
+        : links.length || 25
+
+  return {
+    links,
+    total: Number.isFinite(total) ? total : 0,
+    page: Number.isFinite(page) && page > 0 ? Math.floor(page) : 1,
+    pageSize: Number.isFinite(pageSize) && pageSize > 0 ? Math.floor(pageSize) : 25
+  }
+}
+
+export const fetchAllLinks = async (
+  params?: Record<string, string | number | undefined>
+): Promise<Link[]> => {
+  const baseParams: Record<string, string | number | undefined> = { ...(params ?? {}) }
+  delete baseParams.page
+
+  const firstPage = await fetchLinks({ ...baseParams, page: 1 })
+  const items = [...firstPage.links]
+  const totalPages = Math.ceil(firstPage.total / firstPage.pageSize)
+
+  if (totalPages <= firstPage.page) {
+    return items
+  }
+
+  for (let page = firstPage.page + 1; page <= totalPages; page += 1) {
+    const next = await fetchLinks({ ...baseParams, page })
+    items.push(...next.links)
+  }
+
+  return items
 }
 
 export const createLinkRequest = async (payload: Record<string, unknown>) => {
@@ -63,4 +115,14 @@ export const transferLinkRequest = async (
 ) => {
   const response = await apiClient.post(`/links/${id}/transfer`, payload)
   return response.data.link as Link
+}
+
+export const transferLinksBulkRequest = async (payload: {
+  linkIds: string[]
+  workspaceId: string
+  domain?: string
+  projectId?: string | null
+}) => {
+  const response = await apiClient.post('/links/transfer', payload)
+  return response.data.links as Link[]
 }

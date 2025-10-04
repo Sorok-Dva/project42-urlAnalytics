@@ -13,6 +13,7 @@ import {
   listLinks,
   moveLinkToProject,
   transferLinkToWorkspace,
+  transferLinksToWorkspaceBulk,
   togglePublicStats,
   unarchiveLink,
   updateLink
@@ -39,13 +40,20 @@ export const create = asyncHandler(async (req: Request, res: Response) => {
 
 export const list = asyncHandler(async (req: Request, res: Response) => {
   if (!req.workspaceId) return res.status(401).json({ error: 'Unauthorized' })
-  const links = await listLinks(req.workspaceId, {
+  const rawPage = Number(req.query.page)
+  const page = Number.isFinite(rawPage) && rawPage > 0 ? Math.floor(rawPage) : 1
+  const rawPageSize = Number(req.query.pageSize)
+  const pageSize = Number.isFinite(rawPageSize) && rawPageSize > 0 ? Math.min(Math.floor(rawPageSize), 100) : 25
+
+  const result = await listLinks(req.workspaceId, {
     status: req.query.status as 'active' | 'archived' | 'deleted',
     projectId: req.query.projectId as string,
     search: req.query.search as string,
-    sort: (req.query.sort as 'recent' | 'performance' | 'old') ?? 'recent'
+    sort: (req.query.sort as 'recent' | 'performance' | 'old') ?? 'recent',
+    page,
+    pageSize
   })
-  res.json({ links })
+  res.json(result)
 })
 
 
@@ -152,4 +160,32 @@ export const transfer = asyncHandler(async (req: Request, res: Response) => {
   })
 
   res.json({ link })
+})
+
+export const bulkTransfer = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.workspaceId || !req.currentUser) return res.status(401).json({ error: 'Unauthorized' })
+  const { linkIds, workspaceId: targetWorkspaceId, domain, projectId } = req.body as {
+    linkIds?: string[]
+    workspaceId?: string
+    domain?: string
+    projectId?: string | null
+  }
+
+  if (!Array.isArray(linkIds) || linkIds.length === 0) {
+    return res.status(400).json({ error: 'linkIds is required' })
+  }
+  if (!targetWorkspaceId) {
+    return res.status(400).json({ error: 'workspaceId is required' })
+  }
+
+  const results = await transferLinksToWorkspaceBulk({
+    linkIds,
+    sourceWorkspaceId: req.workspaceId,
+    targetWorkspaceId,
+    requestedById: req.currentUser.id,
+    domain: domain ?? null,
+    projectId: projectId ?? null
+  })
+
+  res.json({ links: results })
 })
