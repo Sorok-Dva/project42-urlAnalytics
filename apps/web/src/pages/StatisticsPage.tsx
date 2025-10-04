@@ -220,8 +220,16 @@ export const StatisticsPage = () => {
 
   const serializedFilters = useMemo(() => serializeFilters(filters), [filters])
 
-  const linksQuery = useQuery({ queryKey: ['links'], queryFn: () => fetchLinks({ status: 'active' }), enabled: Boolean(token) })
-  const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects, enabled: Boolean(token) })
+  const linksQuery = useQuery({
+    queryKey: ['links', workspaceId, 'statistics'],
+    queryFn: () => fetchLinks({ status: 'active' }),
+    enabled: Boolean(token && workspaceId)
+  })
+  const projectsQuery = useQuery({
+    queryKey: ['projects', workspaceId, 'statistics'],
+    queryFn: fetchProjects,
+    enabled: Boolean(token && workspaceId)
+  })
 
   useEffect(() => {
     if (params.linkId) {
@@ -230,7 +238,7 @@ export const StatisticsPage = () => {
   }, [params.linkId])
 
   const analyticsQuery = useQuery({
-    queryKey: ['analytics', selectedProject, selectedLink, serializedFilters, selectedTimeSeries],
+    queryKey: ['analytics', workspaceId, selectedProject, selectedLink, serializedFilters, selectedTimeSeries],
     enabled: Boolean(token && workspaceId),
     queryFn: () =>
       fetchEventsAnalytics({
@@ -273,8 +281,8 @@ export const StatisticsPage = () => {
   })
 
   const linkDetailsQuery = useQuery({
-    queryKey: ['link', selectedLink],
-    enabled: selectedLink !== 'all',
+    queryKey: ['link', workspaceId, selectedLink],
+    enabled: selectedLink !== 'all' && Boolean(workspaceId),
     queryFn: () => fetchLinkDetails(selectedLink)
   })
 

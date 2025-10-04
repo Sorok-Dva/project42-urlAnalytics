@@ -20,6 +20,7 @@ describe('link routes', () => {
       .send({
         domain: 'test.local',
         originalUrl: 'https://example.com/resource',
+        label: 'Homepage redirect',
         projectId: null,
         publicStats: true
       })
@@ -27,6 +28,7 @@ describe('link routes', () => {
     expect(createResponse.status).toBe(201)
     const linkId = createResponse.body.link.id
     const slug = createResponse.body.link.slug
+    expect(createResponse.body.link.label).toBe('Homepage redirect')
 
     const redirectResponse = await request(app)
       .get(`/${slug}`)

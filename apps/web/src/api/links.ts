@@ -56,3 +56,11 @@ export const exportLinkStats = async (id: string, format: 'csv' | 'json') => {
   })
   return response.data as string
 }
+
+export const transferLinkRequest = async (
+  id: string,
+  payload: { workspaceId: string; domain?: string; projectId?: string | null }
+) => {
+  const response = await apiClient.post(`/links/${id}/transfer`, payload)
+  return response.data.link as Link
+}

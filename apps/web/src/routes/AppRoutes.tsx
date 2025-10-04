@@ -6,6 +6,7 @@ import { DeeplinksPage } from '../pages/DeeplinksPage'
 import { LinkDetailsPage } from '../pages/LinkDetailsPage'
 import { QrCodesPage } from '../pages/QrCodesPage'
 import { QrDesignPage } from '../pages/QrDesignPage'
+import { WorkspacesPage } from '../pages/WorkspacesPage'
 import { AuthPage } from '../pages/AuthPage'
 import { useAuth } from '../stores/auth'
 
@@ -20,9 +21,10 @@ export const AppRoutes = () => {
     <Routes>
       <Route path="/auth" element={<AuthPage />} />
       <Route element={<RequireAuth />}>
-        <Route element={<DashboardLayout />}>
-          <Route index element={<HomePage />} />
-          <Route path="statistics" element={<StatisticsPage />} />
+          <Route element={<DashboardLayout />}>
+            <Route index element={<HomePage />} />
+            <Route path="workspaces" element={<WorkspacesPage />} />
+            <Route path="statistics" element={<StatisticsPage />} />
           <Route path="statistics/:linkId" element={<StatisticsPage />} />
           <Route path="deeplinks" element={<DeeplinksPage />} />
           <Route path="deeplinks/:linkId" element={<LinkDetailsPage />} />

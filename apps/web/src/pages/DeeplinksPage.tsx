@@ -1,18 +1,33 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { fetchLinks, createLinkRequest, archiveLinkRequest, unarchiveLinkRequest, deleteLinkRequest } from '../api/links'
+import {
+  fetchLinks,
+  createLinkRequest,
+  archiveLinkRequest,
+  unarchiveLinkRequest,
+  deleteLinkRequest,
+  transferLinkRequest
+} from '../api/links'
 import { useToast } from '../providers/ToastProvider'
 import { fetchDomains } from '../api/domains'
 import { getApiErrorMessage } from '../lib/apiError'
 import type { Link } from '../types'
-
-const sortOptions = [
-  { value: 'recent', label: 'Most recent' },
-  { value: 'performance', label: 'Performance' },
-  { value: 'old', label: 'Most old' }
-]
+import { useAuth } from '../stores/auth'
+import { fetchWorkspaceDomains } from '../api/workspaces'
+import { Skeleton } from '../components/Skeleton'
+import {
+  Eye,
+  BarChart3,
+  Copy as CopyIcon,
+  MoveRight,
+  Archive as ArchiveIcon,
+  RotateCcw,
+  Trash2,
+  PlusCircle,
+  Loader2
+} from 'lucide-react'
 
 export const DeeplinksPage = () => {
   const { t } = useTranslation()
@@ -23,15 +38,52 @@ export const DeeplinksPage = () => {
   const [status, setStatus] = useState<'active' | 'archived' | 'deleted'>('active')
   const [sort, setSort] = useState('recent')
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ originalUrl: '', slug: '', domain: '' })
+  const [form, setForm] = useState({ originalUrl: '', slug: '', domain: '', label: '' })
+  const [transferContext, setTransferContext] = useState<{
+    link: Link | null
+    workspaceId: string
+    domain: string
+  }>({ link: null, workspaceId: '', domain: '' })
+  const [transferDomains, setTransferDomains] = useState<Array<{ id: string; domain: string; status: string }>>([])
+  const [transferDomainsLoading, setTransferDomainsLoading] = useState(false)
+
+  const workspaces = useAuth(state => state.workspaces)
+  const workspaceId = useAuth(state => state.workspaceId)
+  const token = useAuth(state => state.token)
+  const refreshWorkspaces = useAuth(state => state.refreshWorkspaces)
+
+  const sortOptions = useMemo(
+    () => [
+      { value: 'recent', label: t('deeplinks.sort.recent') },
+      { value: 'performance', label: t('deeplinks.sort.performance') },
+      { value: 'old', label: t('deeplinks.sort.old') }
+    ],
+    [t]
+  )
+
+  const statusOptions = useMemo(
+    () => [
+      { value: 'active', label: t('deeplinks.status.active') },
+      { value: 'archived', label: t('deeplinks.status.archived') },
+      { value: 'deleted', label: t('deeplinks.status.deleted') }
+    ],
+    [t]
+  )
 
   const linksQuery = useQuery({
-    queryKey: ['links', search, status, sort],
+    queryKey: ['links', workspaceId, search, status, sort],
+    enabled: Boolean(token && workspaceId),
     queryFn: () => fetchLinks({ search, status, sort })
   })
-  const domainsQuery = useQuery({ queryKey: ['domains'], queryFn: fetchDomains })
+  const domainsQuery = useQuery({
+    queryKey: ['domains', workspaceId],
+    enabled: Boolean(token && workspaceId),
+    queryFn: fetchDomains
+  })
   const fallbackDomain = import.meta.env.VITE_DEFAULT_DOMAIN ?? 'p-42.fr'
   const publicBaseUrl = import.meta.env.VITE_PUBLIC_BASE_URL
+  const domainsLoading = domainsQuery.isLoading
+  const linksLoading = linksQuery.isLoading || linksQuery.isFetching
 
   const buildShortUrl = (link: Link) => {
     const baseCandidate = link.domain?.domain || publicBaseUrl || fallbackDomain
@@ -45,9 +97,9 @@ export const DeeplinksPage = () => {
     const shortUrl = buildShortUrl(link)
     try {
       await navigator.clipboard.writeText(shortUrl)
-      push({ title: t('deeplinks.copySuccess', 'Link copied'), description: shortUrl })
+      push({ title: t('deeplinks.copySuccess'), description: shortUrl })
     } catch (error) {
-      push({ title: t('deeplinks.copyError', 'Copy failed'), description: String(error) })
+      push({ title: t('deeplinks.copyError'), description: String(error) })
     }
   }
 
@@ -65,21 +117,32 @@ export const DeeplinksPage = () => {
   const defaultDomain = domainOptions[0]?.domain ?? ''
 
   useEffect(() => {
-    if (!form.domain && defaultDomain) {
+    if (!domainsLoading && !form.domain && defaultDomain) {
       setForm(prev => ({ ...prev, domain: defaultDomain }))
     }
-  }, [defaultDomain, form.domain])
+  }, [defaultDomain, form.domain, domainsLoading])
+
+  useEffect(() => {
+    if (workspaces.length <= 1) {
+      refreshWorkspaces().catch(() => {
+        push({ title: 'Impossible de charger les espaces de travail' })
+      })
+    }
+  }, [workspaces.length, refreshWorkspaces, push])
 
   const createMutation = useMutation({
     mutationFn: createLinkRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['links'] })
       setShowForm(false)
-      setForm({ originalUrl: '', slug: '', domain: defaultDomain ?? '' })
-      push({ title: 'Link created', description: 'Your short link is live' })
+      setForm({ originalUrl: '', slug: '', domain: defaultDomain ?? '', label: '' })
+      push({
+        title: t('deeplinks.toast.created.title'),
+        description: t('deeplinks.toast.created.description')
+      })
     },
     onError: error => {
-      push({ title: 'Erreur lors de la création', description: getApiErrorMessage(error) })
+      push({ title: t('deeplinks.toast.createError.title'), description: getApiErrorMessage(error) })
     }
   })
 
@@ -87,10 +150,10 @@ export const DeeplinksPage = () => {
     mutationFn: archiveLinkRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['links'] })
-      push({ title: 'Link archived' })
+      push({ title: t('deeplinks.toast.archived.title') })
     },
     onError: error => {
-      push({ title: 'Impossible d\'archiver', description: getApiErrorMessage(error) })
+      push({ title: t('deeplinks.toast.archiveError.title'), description: getApiErrorMessage(error) })
     }
   })
 
@@ -98,10 +161,10 @@ export const DeeplinksPage = () => {
     mutationFn: unarchiveLinkRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['links'] })
-      push({ title: 'Link restored' })
+      push({ title: t('deeplinks.toast.unarchived.title') })
     },
     onError: error => {
-      push({ title: 'Impossible de restaurer', description: getApiErrorMessage(error) })
+      push({ title: t('deeplinks.toast.unarchiveError.title'), description: getApiErrorMessage(error) })
     }
   })
 
@@ -109,14 +172,108 @@ export const DeeplinksPage = () => {
     mutationFn: deleteLinkRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['links'] })
-      push({ title: 'Link deleted' })
+      push({ title: t('deeplinks.toast.deleted.title') })
     },
     onError: error => {
-      push({ title: 'Suppression impossible', description: getApiErrorMessage(error) })
+      push({ title: t('deeplinks.toast.deleteError.title'), description: getApiErrorMessage(error) })
     }
   })
 
+  const statusLabels = useMemo(
+    () => ({
+      active: t('deeplinks.status.active'),
+      archived: t('deeplinks.status.archived'),
+      deleted: t('deeplinks.status.deleted')
+    }),
+    [t]
+  )
+
   const filteredLinks = useMemo(() => linksQuery.data ?? [], [linksQuery.data])
+
+  const availableTargets = useMemo(
+    () => workspaces.filter(item => item.id !== workspaceId && item.memberStatus === 'active'),
+    [workspaces, workspaceId]
+  )
+
+  useEffect(() => {
+    if (!transferContext.link) {
+      setTransferDomains([])
+      setTransferDomainsLoading(false)
+      return
+    }
+    if (!availableTargets.some(target => target.id === transferContext.workspaceId)) {
+      setTransferContext(current => ({
+        ...current,
+        workspaceId: availableTargets[0]?.id ?? ''
+      }))
+    }
+  }, [availableTargets, transferContext.link])
+
+  useEffect(() => {
+    if (!transferContext.link || !transferContext.workspaceId) {
+      setTransferDomains([])
+      return
+    }
+    setTransferDomainsLoading(true)
+    fetchWorkspaceDomains(transferContext.workspaceId)
+      .then(domains => {
+        setTransferDomains(domains)
+        setTransferContext(current => ({
+          ...current,
+          domain: current.domain && domains.some(domain => domain.domain === current.domain)
+            ? current.domain
+            : domains[0]?.domain ?? ''
+        }))
+      })
+      .catch(() => {
+        push({ title: t('deeplinks.transfer.loadDomainsError') })
+        setTransferDomains([])
+      })
+      .finally(() => setTransferDomainsLoading(false))
+  }, [transferContext.link?.id, transferContext.workspaceId, push, t])
+
+  const transferMutation = useMutation({
+    mutationFn: (input: { linkId: string; payload: { workspaceId: string; domain?: string } }) =>
+      transferLinkRequest(input.linkId, input.payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['links'] })
+      setTransferContext({ link: null, workspaceId: '', domain: '' })
+      push({
+        title: t('deeplinks.toast.transferred.title'),
+        description: t('deeplinks.toast.transferred.description')
+      })
+    },
+    onError: error => {
+      push({ title: t('deeplinks.toast.transferError.title'), description: getApiErrorMessage(error) })
+    }
+  })
+
+  const beginTransfer = (link: Link) => {
+    if (availableTargets.length === 0) {
+      push({ title: t('deeplinks.transfer.noWorkspace') })
+      return
+    }
+    setTransferContext({
+      link,
+      workspaceId: availableTargets[0]?.id ?? '',
+      domain: link.domain?.domain ?? ''
+    })
+  }
+
+  const cancelTransfer = () => setTransferContext({ link: null, workspaceId: '', domain: '' })
+
+  const submitTransfer = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!transferContext.link || !transferContext.workspaceId) return
+
+    await transferMutation.mutateAsync({
+      linkId: transferContext.link.id,
+      payload: {
+        workspaceId: transferContext.workspaceId,
+        domain: transferContext.domain.trim() ? transferContext.domain.trim() : undefined
+      }
+    })
+  }
 
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -125,7 +282,8 @@ export const DeeplinksPage = () => {
       originalUrl: form.originalUrl,
       slug: form.slug || undefined,
       domain: form.domain,
-      publicStats: false
+      publicStats: false,
+      label: form.label.trim() ? form.label.trim() : undefined
     })
   }
 
@@ -134,7 +292,7 @@ export const DeeplinksPage = () => {
       <div className="flex flex-wrap items-center gap-3">
         <div>
           <h2 className="text-2xl font-semibold">{t('deeplinks.title')}</h2>
-          <p className="text-sm text-muted">Manage, filter and organise your links</p>
+          <p className="text-sm text-muted">{t('deeplinks.subtitle')}</p>
         </div>
         <div className="ml-auto flex gap-2">
           <input
@@ -148,9 +306,11 @@ export const DeeplinksPage = () => {
             onChange={event => setStatus(event.target.value as typeof status)}
             className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
           >
-            <option value="active">Active</option>
-            <option value="archived">Archived</option>
-            <option value="deleted">Removed</option>
+            {statusOptions.map(option => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
           <select
             value={sort}
@@ -165,8 +325,9 @@ export const DeeplinksPage = () => {
           </select>
           <button
             onClick={() => setShowForm(current => !current)}
-            className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white"
+            className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-2 text-sm font-medium text-white"
           >
+            <PlusCircle className="h-4 w-4" />
             {t('deeplinks.create')}
           </button>
         </div>
@@ -175,43 +336,64 @@ export const DeeplinksPage = () => {
       {showForm && (
         <form onSubmit={handleCreate} className="grid gap-4 rounded-2xl border border-slate-800/70 bg-slate-900/40 p-6 md:grid-cols-4">
           <div className="md:col-span-2">
-            <label className="text-xs text-muted">Original URL</label>
+            <label className="text-xs text-muted">{t('deeplinks.form.originalUrl')}</label>
             <input
               value={form.originalUrl}
               onChange={event => setForm(prev => ({ ...prev, originalUrl: event.target.value }))}
               className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100"
-              placeholder="https://..."
+              placeholder={t('deeplinks.form.originalUrlPlaceholder')}
             />
           </div>
           <div>
-            <label className="text-xs text-muted">Slug</label>
+            <label className="text-xs text-muted">{t('deeplinks.form.label')}</label>
+            <input
+              value={form.label}
+              onChange={event => setForm(prev => ({ ...prev, label: event.target.value }))}
+              className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100"
+              placeholder={t('deeplinks.form.labelPlaceholder')}
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted">{t('deeplinks.form.slug')}</label>
             <input
               value={form.slug}
               onChange={event => setForm(prev => ({ ...prev, slug: event.target.value }))}
               className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100"
-              placeholder="my-awesome-link"
+              placeholder={t('deeplinks.form.slugPlaceholder')}
             />
           </div>
           <div>
-            <label className="text-xs text-muted">Domain</label>
-            <select
-              value={form.domain}
-              onChange={event => setForm(prev => ({ ...prev, domain: event.target.value }))}
-              className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100"
-            >
-              {domainOptions.map(domain => (
-                <option key={domain.id} value={domain.domain}>
-                  {domain.domain}
-                </option>
-              ))}
-            </select>
+            <label className="text-xs text-muted">{t('deeplinks.form.domain')}</label>
+            {domainsLoading ? (
+              <Skeleton className="mt-1 h-10" />
+            ) : (
+              <select
+                value={form.domain}
+                onChange={event => setForm(prev => ({ ...prev, domain: event.target.value }))}
+                className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100"
+              >
+                {domainOptions.map(domain => (
+                  <option key={domain.id} value={domain.domain}>
+                    {domain.domain}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
           <div className="md:col-span-4 flex justify-end gap-2">
-            <button type="button" onClick={() => setShowForm(false)} className="rounded-md border border-slate-700 px-4 py-2 text-sm text-slate-200">
-              Cancel
+            <button
+              type="button"
+              onClick={() => setShowForm(false)}
+              className="rounded-md border border-slate-700 px-4 py-2 text-sm text-slate-200"
+            >
+              {t('common.cancel')}
             </button>
-            <button type="submit" className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white" disabled={createMutation.isPending}>
-              Save
+            <button
+              type="submit"
+              className="flex items-center gap-1.5 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-70"
+              disabled={createMutation.isPending}
+            >
+              {createMutation.isPending ? t('common.saving') : t('common.save')}
             </button>
           </div>
         </form>
@@ -221,60 +403,181 @@ export const DeeplinksPage = () => {
         <table className="min-w-full divide-y divide-slate-800/60 text-sm">
           <thead>
             <tr className="bg-slate-900/60">
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-300">Slug</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-300">Original URL</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-300">Clicks</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-300">Status</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-300">Actions</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-300">{t('deeplinks.table.name')}</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-300">{t('deeplinks.table.original')}</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-300">{t('deeplinks.table.clicks')}</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-300">{t('deeplinks.table.status')}</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-300">{t('deeplinks.table.actions')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/60">
             {filteredLinks.map(link => (
               <tr key={link.id} className="hover:bg-slate-800/40">
-                <td className="px-4 py-3 font-medium text-slate-200">{link.slug}</td>
+                <td className="px-4 py-3 font-medium text-slate-200">
+                  <div className="text-sm font-semibold text-slate-100">{link.label ?? link.slug}</div>
+                  <div className="text-xs text-slate-400">{link.slug}</div>
+                </td>
                 <td className="px-4 py-3 text-slate-300">{link.originalUrl}</td>
                 <td className="px-4 py-3 text-slate-300">{link.clickCount}</td>
-                <td className="px-4 py-3 text-xs uppercase text-muted">{link.status}</td>
+                <td className="px-4 py-3 text-xs uppercase text-muted">{statusLabels[link.status]}</td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-2 text-xs">
-                    <button onClick={() => navigate(`/deeplinks/${link.id}`)} className="rounded border border-slate-700 px-2 py-1 text-slate-200 hover:border-accent">
-                      Details
+                    <button
+                      onClick={() => navigate(`/deeplinks/${link.id}`)}
+                      className="flex items-center gap-1.5 rounded border border-slate-700 px-3 py-1.5 text-slate-200 transition hover:border-accent"
+                    >
+                      <Eye className="h-4 w-4" />
+                      {t('deeplinks.actions.details')}
                     </button>
-                    <button onClick={() => navigate(`/statistics/${link.id}`)} className="rounded border border-slate-700 px-2 py-1 text-slate-200 hover:border-accent">
-                      Stats
+                    <button
+                      onClick={() => navigate(`/statistics/${link.id}`)}
+                      className="flex items-center gap-1.5 rounded border border-slate-700 px-3 py-1.5 text-slate-200 transition hover:border-accent"
+                    >
+                      <BarChart3 className="h-4 w-4" />
+                      {t('deeplinks.actions.stats')}
                     </button>
                     <button
                       onClick={() => handleCopy(link)}
-                      className="rounded border border-slate-700 px-2 py-1 text-slate-200 hover:border-accent"
+                      className="flex items-center gap-1.5 rounded border border-slate-700 px-3 py-1.5 text-slate-200 transition hover:border-accent"
                     >
-                      Copy
+                      <CopyIcon className="h-4 w-4" />
+                      {t('deeplinks.actions.copy')}
                     </button>
-                    {link.status !== 'archived' ? (
-                      <button onClick={() => archiveMutation.mutate(link.id)} className="rounded border border-slate-700 px-2 py-1 text-yellow-300 hover:border-yellow-500">
-                        Archive
-                      </button>
-                    ) : (
-                      <button onClick={() => unarchiveMutation.mutate(link.id)} className="rounded border border-slate-700 px-2 py-1 text-green-300 hover:border-green-500">
-                        Unarchive
+                    {availableTargets.length > 0 && (
+                      <button
+                        onClick={() => beginTransfer(link)}
+                        className="flex items-center gap-1.5 rounded border border-slate-700 px-3 py-1.5 text-slate-200 transition hover:border-accent"
+                      >
+                        <MoveRight className="h-4 w-4" />
+                        {t('deeplinks.actions.transfer')}
                       </button>
                     )}
-                    <button onClick={() => deleteMutation.mutate(link.id)} className="rounded border border-red-500/60 px-2 py-1 text-red-300 hover:bg-red-500/20">
-                      Delete
+                    {link.status !== 'archived' ? (
+                      <button
+                        onClick={() => archiveMutation.mutate(link.id)}
+                        className="flex items-center gap-1.5 rounded border border-amber-500/50 px-3 py-1.5 text-amber-200 transition hover:border-amber-500 hover:bg-amber-500/10"
+                      >
+                        <ArchiveIcon className="h-4 w-4" />
+                        {t('deeplinks.actions.archive')}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => unarchiveMutation.mutate(link.id)}
+                        className="flex items-center gap-1.5 rounded border border-emerald-500/50 px-3 py-1.5 text-emerald-200 transition hover:border-emerald-500 hover:bg-emerald-500/10"
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                        {t('deeplinks.actions.unarchive')}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => deleteMutation.mutate(link.id)}
+                      className="flex items-center gap-1.5 rounded border border-red-500/50 px-3 py-1.5 text-red-300 transition hover:border-red-500 hover:bg-red-500/10"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      {t('deeplinks.actions.delete')}
                     </button>
                   </div>
                 </td>
               </tr>
             ))}
-            {filteredLinks.length === 0 && (
+            {linksLoading && (
+              <tr>
+                <td colSpan={5} className="px-4 py-6">
+                  <div className="space-y-3">
+                    <Skeleton className="h-12" />
+                    <Skeleton className="h-12" />
+                    <Skeleton className="h-12" />
+                  </div>
+                </td>
+              </tr>
+            )}
+            {!linksLoading && filteredLinks.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-6 text-center text-sm text-muted">
-                  No links for this view
+                  {t('deeplinks.empty')}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
-      </div>
     </div>
-  )
+
+    {transferContext.link && (
+      <div className="rounded-2xl border border-slate-800/70 bg-slate-900/40 p-6">
+        <h3 className="text-sm font-semibold text-slate-100">
+          {t('deeplinks.transfer.title', {
+            name: transferContext.link.label ?? transferContext.link.slug
+          })}
+        </h3>
+        <p className="mt-1 text-xs text-slate-400">{t('deeplinks.transfer.description')}</p>
+        <form onSubmit={submitTransfer} className="mt-4 flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[200px]">
+            <label className="text-xs text-muted">{t('deeplinks.transfer.targetWorkspace')}</label>
+            <select
+              value={transferContext.workspaceId}
+              onChange={event =>
+                setTransferContext(current => ({ ...current, workspaceId: event.target.value }))
+              }
+              className="mt-1 w-full rounded-md border border-slate-800/60 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/40"
+            >
+              {availableTargets.map(workspace => (
+                <option key={workspace.id} value={workspace.id}>
+                  {workspace.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex-1 min-w-[220px]">
+            <label className="text-xs text-muted">{t('deeplinks.transfer.domain')}</label>
+            {transferDomainsLoading ? (
+              <div className="mt-1 flex items-center gap-2 rounded-md border border-slate-800/60 bg-slate-900/60 px-3 py-2 text-sm text-slate-300">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {t('deeplinks.transfer.loadingDomains')}
+              </div>
+            ) : transferDomains.length > 0 ? (
+              <select
+                value={transferContext.domain}
+                onChange={event =>
+                  setTransferContext(current => ({ ...current, domain: event.target.value }))
+                }
+                className="mt-1 w-full rounded-md border border-slate-800/60 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/40"
+              >
+                {transferDomains.map(domain => (
+                  <option key={`${domain.id}-${domain.domain}`} value={domain.domain}>
+                    {domain.domain}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="mt-1 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                {t('deeplinks.transfer.noDomain')}
+              </div>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              className="flex items-center gap-2 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-white disabled:opacity-70"
+              disabled={
+                transferMutation.isPending ||
+                !transferContext.workspaceId ||
+                transferDomainsLoading ||
+                (transferDomains.length === 0 && transferContext.domain.trim().length === 0)
+              }
+            >
+              {transferMutation.isPending ? t('deeplinks.transfer.submitting') : t('deeplinks.transfer.confirm')}
+            </button>
+            <button
+              type="button"
+              onClick={cancelTransfer}
+              className="rounded-md border border-slate-700 px-3 py-2 text-sm text-slate-200"
+            >
+              {t('common.cancel')}
+            </button>
+          </div>
+        </form>
+      </div>
+    )}
+  </div>
+)
 }

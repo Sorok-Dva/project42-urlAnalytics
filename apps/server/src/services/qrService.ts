@@ -2,9 +2,16 @@ import QRCode from 'qrcode'
 import { nanoid } from 'nanoid'
 import { QrCode } from '../models/qrCode'
 import { Link } from '../models/link'
+import { Project } from '../models/project'
+import { sequelize } from '../config/database'
 import { buildCacheKey, createLink } from './linkService'
-import { ensureWorkspaceLimit } from './workspaceService'
+import { ensureWorkspaceLimit, findWorkspaceMembership } from './workspaceService'
 import { cacheLinkResolution } from '../lib/cache'
+
+const withStatus = (error: Error, status: number) => {
+  ;(error as any).status = status
+  return error
+}
 
 export const listQrCodes = async (workspaceId: string, filters?: { search?: string }) => {
   const where: Record<string, unknown> = { workspaceId }
@@ -92,6 +99,72 @@ export const createQrFromUrl = async (payload: {
     qr,
     svg: await generateQrSvg(`${code}`, design)
   }
+}
+
+export const transferQrCodeToWorkspace = async (payload: {
+  qrId: string
+  sourceWorkspaceId: string
+  targetWorkspaceId: string
+  requestedById: string
+  linkId?: string | null
+  projectId?: string | null
+}) => {
+  if (payload.sourceWorkspaceId === payload.targetWorkspaceId) {
+    throw withStatus(new Error('QR code already belongs to this workspace'), 400)
+  }
+
+  const qr = await QrCode.findOne({
+    where: { id: payload.qrId, workspaceId: payload.sourceWorkspaceId }
+  })
+
+  if (!qr) throw withStatus(new Error('QR code not found'), 404)
+
+  const membership = await findWorkspaceMembership(payload.targetWorkspaceId, payload.requestedById)
+  if (!membership || membership.status !== 'active' || membership.role === 'viewer') {
+    throw withStatus(new Error('You do not have access to the target workspace'), 403)
+  }
+
+  await ensureWorkspaceLimit(payload.targetWorkspaceId, 'qrCodes')
+
+  let nextLinkId: string | null = typeof payload.linkId !== 'undefined' ? payload.linkId : qr.linkId
+  if (nextLinkId) {
+    const link = await Link.findOne({ where: { id: nextLinkId, workspaceId: payload.targetWorkspaceId } })
+    if (!link) {
+      throw withStatus(new Error('Link not found in target workspace'), 404)
+    }
+  }
+
+  if (nextLinkId === null) {
+    nextLinkId = null
+  }
+
+  let nextProjectId: string | null = null
+  if (typeof payload.projectId !== 'undefined') {
+    if (payload.projectId !== null) {
+      const project = await Project.findOne({
+        where: { id: payload.projectId, workspaceId: payload.targetWorkspaceId }
+      })
+      if (!project) throw withStatus(new Error('Project not found in target workspace'), 404)
+      nextProjectId = project.id
+    }
+  }
+
+  if (nextProjectId) {
+    const existingProject = await Project.findOne({
+      where: { id: nextProjectId, workspaceId: payload.targetWorkspaceId }
+    })
+    if (!existingProject) throw withStatus(new Error('Project not found in target workspace'), 404)
+  }
+
+  await sequelize.transaction(async transaction => {
+    qr.workspaceId = payload.targetWorkspaceId
+    qr.projectId = nextProjectId
+    qr.linkId = nextLinkId
+    await qr.save({ transaction })
+  })
+
+  await qr.reload()
+  return qr
 }
 
 const normalizeHexColor = (value: unknown, fallback: string) => {

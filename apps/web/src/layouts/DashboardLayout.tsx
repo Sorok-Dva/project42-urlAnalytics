@@ -5,9 +5,11 @@ import { useAuth } from '../stores/auth'
 import { useTheme } from '../providers/ThemeProvider'
 import { setAuthToken } from '../api/client'
 import { StatusBadge } from '../components/StatusBadge'
+import { WorkspaceSwitcher } from '../components/WorkspaceSwitcher'
 
 const navItems = [
   { to: '/', key: 'nav.home', icon: '🏠' },
+  { to: '/workspaces', key: 'nav.workspaces', icon: '🏢' },
   { to: '/statistics', key: 'nav.statistics', icon: '📊' },
   { to: '/deeplinks', key: 'nav.deeplinks', icon: '🔗' },
   { to: '/qr-codes', key: 'nav.qr', icon: '🌀' }
@@ -42,9 +44,14 @@ export const DashboardLayout = () => {
             <div className="mt-6 space-y-2 rounded-xl border border-white/10 bg-white/5 p-4 text-xs">
               <p className="font-medium text-slate-200">{user.name}</p>
               <p className="text-slate-400">{user.email}</p>
-              <div className="flex flex-wrap gap-2">
-                <StatusBadge label="Workspace" tone="neutral" />
-                {workspaceId && <code className="rounded bg-black/40 px-2 py-1 text-[10px] text-slate-300">{workspaceId.slice(0, 8)}</code>}
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusBadge label="Espace de travail" tone="neutral" />
+                  {workspaceId && (
+                    <code className="rounded bg-black/40 px-2 py-1 text-[10px] text-slate-300">{workspaceId.slice(0, 8)}</code>
+                  )}
+                </div>
+                <WorkspaceSwitcher />
               </div>
             </div>
           )}
@@ -94,7 +101,7 @@ export const DashboardLayout = () => {
           </div>
           <div className="flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-slate-200">
             <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_2px_rgba(16,185,129,0.5)]" />
-            <span>Realtime analytics synchronised</span>
+            <span>Analyses en temps réel synchronisées</span>
           </div>
         </header>
         <section className="flex-1 overflow-y-auto px-10 py-8">

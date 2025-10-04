@@ -8,6 +8,7 @@ import { LinkEvent } from './linkEvent'
 import { QrCode } from './qrCode'
 import { ApiKey } from './apiKey'
 import { Webhook } from './webhook'
+import { SignupInvite } from './signupInvite'
 
 export const models = {
   User,
@@ -19,7 +20,8 @@ export const models = {
   LinkEvent,
   QrCode,
   ApiKey,
-  Webhook
+  Webhook,
+  SignupInvite
 }
 
 export const registerAssociations = () => {
@@ -64,4 +66,6 @@ export const registerAssociations = () => {
   Webhook.belongsTo(Workspace, { foreignKey: 'workspaceId', as: 'workspace' })
   Webhook.belongsTo(User, { foreignKey: 'createdById', as: 'creator' })
   Workspace.hasMany(Webhook, { foreignKey: 'workspaceId', as: 'webhooks' })
+
+  SignupInvite.belongsTo(User, { foreignKey: 'usedById', as: 'usedBy' })
 }

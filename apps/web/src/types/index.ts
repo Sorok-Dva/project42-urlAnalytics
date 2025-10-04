@@ -7,15 +7,11 @@ import type {
   AnalyticsGeoCity,
   AnalyticsGeoCountry,
   AnalyticsPoint,
-  AnalyticsTimeBucket
+  AnalyticsTimeBucket,
+  WorkspaceSummary,
+  WorkspaceMemberSummary,
+  WorkspaceRole
 } from '@p42/shared'
-
-export interface Workspace {
-  id: string
-  name: string
-  slug: string
-  plan: string
-}
 
 export interface GeoRule {
   priority: number
@@ -34,6 +30,7 @@ export interface User {
 export interface Link {
   id: string
   slug: string
+  label?: string | null
   originalUrl: string
   status: 'active' | 'archived' | 'deleted'
   clickCount: number
@@ -60,7 +57,10 @@ export type {
   AnalyticsGeoCity,
   AnalyticsGeoCountry,
   AnalyticsPoint,
-  AnalyticsTimeBucket
+  AnalyticsTimeBucket,
+  WorkspaceSummary,
+  WorkspaceMemberSummary,
+  WorkspaceRole
 }
 
 export interface Project {

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express'
 import { asyncHandler } from '../middleware/asyncHandler'
-import { createQrForLink, createQrFromUrl, generateQrSvg, listQrCodes } from '../services/qrService'
+import { createQrForLink, createQrFromUrl, generateQrSvg, listQrCodes, transferQrCodeToWorkspace } from '../services/qrService'
 import { QrCode } from '../models/qrCode'
 import { Link } from '../models/link'
 
@@ -86,4 +86,25 @@ export const remove = asyncHandler(async (req: Request, res: Response) => {
 
   await qr.destroy()
   res.status(204).send()
+})
+
+export const transfer = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.workspaceId || !req.currentUser) return res.status(401).json({ error: 'Unauthorized' })
+  const { workspaceId: targetWorkspaceId, linkId, projectId } = req.body as {
+    workspaceId?: string
+    linkId?: string | null
+    projectId?: string | null
+  }
+  if (!targetWorkspaceId) return res.status(400).json({ error: 'workspaceId is required' })
+
+  const qr = await transferQrCodeToWorkspace({
+    qrId: req.params.id,
+    sourceWorkspaceId: req.workspaceId,
+    targetWorkspaceId,
+    requestedById: req.currentUser.id,
+    linkId: typeof linkId === 'undefined' ? undefined : linkId,
+    projectId: typeof projectId === 'undefined' ? undefined : projectId
+  })
+
+  res.json({ qr })
 })

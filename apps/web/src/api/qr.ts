@@ -31,3 +31,11 @@ export const updateQrCode = async (id: string, payload: Record<string, unknown>)
 export const deleteQrCode = async (id: string) => {
   await apiClient.delete(`/qr/${id}`)
 }
+
+export const transferQrCodeRequest = async (
+  id: string,
+  payload: { workspaceId: string; linkId?: string | null; projectId?: string | null }
+) => {
+  const response = await apiClient.post(`/qr/${id}/transfer`, payload)
+  return response.data.qr as QrCodeDetail
+}

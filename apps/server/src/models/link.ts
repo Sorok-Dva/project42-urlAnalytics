@@ -14,6 +14,7 @@ export interface LinkAttributes {
   projectId: string | null
   domainId: string | null
   slug: string
+  label: string | null
   originalUrl: string
   comment: string | null
   status: 'active' | 'archived' | 'deleted'
@@ -37,6 +38,7 @@ export type LinkCreationAttributes = Optional<
   | 'projectId'
   | 'domainId'
   | 'comment'
+  | 'label'
   | 'status'
   | 'geoRules'
   | 'expirationAt'
@@ -55,6 +57,7 @@ export class Link extends Model<LinkAttributes, LinkCreationAttributes> implemen
   declare projectId: string | null
   declare domainId: string | null
   declare slug: string
+  declare label: string | null
   declare originalUrl: string
   declare comment: string | null
   declare status: 'active' | 'archived' | 'deleted'
@@ -94,6 +97,10 @@ Link.init(
     slug: {
       type: DataTypes.STRING(255),
       allowNull: false
+    },
+    label: {
+      type: DataTypes.STRING(255),
+      allowNull: true
     },
     originalUrl: {
       type: DataTypes.TEXT,

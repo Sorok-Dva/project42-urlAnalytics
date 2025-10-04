@@ -12,9 +12,11 @@ import { resolveGeo, hashIp, mergeGeoResults, type GeoResult } from '../lib/geo'
 import { parseUserAgent, isBotUserAgent } from '../lib/userAgent'
 import { dispatchWebhooks } from '../lib/webhooks'
 import { resolveInteractionType, getInteractionType, getInteractionLabel } from '../lib/interactionType'
-import { ensureWorkspaceLimit } from './workspaceService'
+import { ensureWorkspaceLimit, findWorkspaceMembership } from './workspaceService'
 import { publishAnalyticsEvent } from '../lib/eventBus'
 import { AggregationInterval, ApiLinkSchema, type AnalyticsFilters } from '@p42/shared'
+import { Project } from '../models/project'
+import { QrCode } from '../models/qrCode'
 import {
   buildEventsFlow,
   buildTimeSeries,
@@ -22,6 +24,11 @@ import {
   getIntervalGranularity,
   summarizeByDimension
 } from '../lib/analytics'
+
+const withStatus = (error: Error, status: number) => {
+  ;(error as any).status = status
+  return error
+}
 
 const linkCreationSchema = ApiLinkSchema.extend({
   domain: z.string().min(1).default(env.defaultDomain),
@@ -46,6 +53,7 @@ export const createLink = async (payload: z.infer<typeof linkCreationSchema>) =>
   const slug = data.slug || nanoid(8)
   const normalizedDomain = data.domain.trim().toLowerCase()
   const domain = await resolveDomainOrThrow(data.workspaceId, normalizedDomain)
+  const label = typeof data.label === 'string' ? data.label.trim() : null
 
   await ensureWorkspaceLimit(data.workspaceId, 'links')
   return sequelize.transaction(async transaction => {
@@ -65,6 +73,7 @@ export const createLink = async (payload: z.infer<typeof linkCreationSchema>) =>
         projectId: data.projectId,
         domainId: domain.id,
         slug,
+        label: label && label.length > 0 ? label : null,
         originalUrl: data.originalUrl,
         comment: data.comment ?? null,
         geoRules: data.geoRules,
@@ -102,7 +111,7 @@ export const updateLink = async (payload: z.infer<typeof linkUpdateSchema>) => {
 
   await ensureWorkspaceLimit(data.workspaceId, 'links')
   return sequelize.transaction(async transaction => {
-    if (data.domain && !currentDomain) {
+  if (data.domain && !currentDomain) {
       const targetDomain = await resolveDomainOrThrow(link.workspaceId, data.domain)
       link.domainId = targetDomain.id
     } else if (data.domain && data.domain !== currentDomain) {
@@ -130,6 +139,10 @@ export const updateLink = async (payload: z.infer<typeof linkUpdateSchema>) => {
     if (data.originalUrl) {
       link.originalUrl = data.originalUrl
       link.utm = extractUtmParams(data.originalUrl)
+    }
+    if (typeof data.label !== 'undefined') {
+      const nextLabel = typeof data.label === 'string' ? data.label.trim() : null
+      link.label = nextLabel && nextLabel.length > 0 ? nextLabel : null
     }
     if (typeof data.comment !== 'undefined') link.comment = data.comment
     if (typeof data.publicStats !== 'undefined') link.publicStats = data.publicStats
@@ -165,6 +178,7 @@ export const listLinks = async (
     (where as any)[Op.or] = [
       { slug: { [Op.like]: `%${filters.search}%` } },
       { originalUrl: { [Op.like]: `%${filters.search}%` } },
+      { label: { [Op.like]: `%${filters.search}%` } },
       { comment: { [Op.like]: `%${filters.search}%` } }
     ]
   }
@@ -718,6 +732,7 @@ export const duplicateLink = async (linkId: string, overrides?: Partial<{ slug: 
     projectId: link.projectId,
     domainId: link.domainId,
     slug,
+    label: link.label,
     originalUrl: link.originalUrl,
     comment: link.comment,
     status: 'active',
@@ -734,6 +749,106 @@ export const duplicateLink = async (linkId: string, overrides?: Partial<{ slug: 
 
   cacheLinkResolution(buildCacheKey(domain.domain, slug), duplicate)
   return duplicate
+}
+
+export const transferLinkToWorkspace = async (payload: {
+  linkId: string
+  sourceWorkspaceId: string
+  targetWorkspaceId: string
+  requestedById: string
+  domain?: string | null
+  projectId?: string | null
+}) => {
+  if (payload.sourceWorkspaceId === payload.targetWorkspaceId) {
+    throw withStatus(new Error('Link already belongs to this workspace'), 400)
+  }
+
+  const link = await Link.findOne({
+    where: { id: payload.linkId, workspaceId: payload.sourceWorkspaceId },
+    include: [{ model: Domain, as: 'domain' }]
+  })
+  if (!link) throw withStatus(new Error('Link not found'), 404)
+
+  const membership = await findWorkspaceMembership(payload.targetWorkspaceId, payload.requestedById)
+  if (!membership || membership.status !== 'active' || membership.role === 'viewer') {
+    throw withStatus(new Error('You do not have access to the target workspace'), 403)
+  }
+
+  await ensureWorkspaceLimit(payload.targetWorkspaceId, 'links')
+
+  const domainInput = payload.domain?.trim().toLowerCase()
+
+  let targetDomain: Domain | null = null
+  if (domainInput) {
+    targetDomain = await resolveDomainOrThrow(payload.targetWorkspaceId, domainInput)
+  } else if (link.domainId) {
+    const currentDomain = await Domain.findByPk(link.domainId)
+    if (currentDomain?.workspaceId && currentDomain.workspaceId !== payload.targetWorkspaceId) {
+      throw withStatus(new Error('Domain is not available in the target workspace'), 400)
+    }
+    targetDomain = currentDomain ?? null
+  }
+
+  if (targetDomain) {
+    const duplicate = await Link.findOne({
+      where: {
+        workspaceId: payload.targetWorkspaceId,
+        domainId: targetDomain.id,
+        slug: link.slug,
+        id: { [Op.ne]: link.id }
+      }
+    })
+    if (duplicate) throw withStatus(new Error('Slug already exists in target workspace'), 400)
+  } else {
+    const duplicate = await Link.findOne({
+      where: {
+        workspaceId: payload.targetWorkspaceId,
+        domainId: null,
+        slug: link.slug,
+        id: { [Op.ne]: link.id }
+      }
+    })
+    if (duplicate) throw withStatus(new Error('Slug already exists in target workspace'), 400)
+  }
+
+  let targetProjectId: string | null = null
+  if (payload.projectId) {
+    const project = await Project.findOne({
+      where: { id: payload.projectId, workspaceId: payload.targetWorkspaceId }
+    })
+    if (!project) throw withStatus(new Error('Project not found in target workspace'), 404)
+    targetProjectId = project.id
+  }
+
+  const previousDomainName = link.domain?.domain ?? null
+
+  await sequelize.transaction(async transaction => {
+    link.workspaceId = payload.targetWorkspaceId
+    link.projectId = targetProjectId
+    link.domainId = targetDomain?.id ?? null
+    await link.save({ transaction })
+
+    await LinkEvent.update(
+      { workspaceId: payload.targetWorkspaceId },
+      { where: { linkId: link.id }, transaction }
+    )
+
+    await QrCode.update(
+      { workspaceId: payload.targetWorkspaceId },
+      { where: { linkId: link.id }, transaction }
+    )
+  })
+
+  if (previousDomainName) {
+    invalidateLink(buildCacheKey(previousDomainName, link.slug))
+  }
+  const nextDomainName = targetDomain?.domain ?? previousDomainName
+  if (nextDomainName) {
+    cacheLinkResolution(buildCacheKey(nextDomainName, link.slug), link)
+  }
+
+  await link.reload({ include: [{ model: Domain, as: 'domain' }] })
+  return link
 }
 
 export const getLinkShareUrl = (link: Link) => {

@@ -1,6 +1,8 @@
 import { DataTypes, Model, Optional } from 'sequelize'
 import { sequelize } from '../config/database'
 import { WorkspaceRole } from '@p42/shared'
+import type { Workspace } from './workspace'
+import type { User } from './user'
 
 export interface WorkspaceMemberAttributes {
   id: string
@@ -27,6 +29,8 @@ export class WorkspaceMember
   declare invitedById: string | null
   declare readonly createdAt: Date
   declare readonly updatedAt: Date
+  declare workspace?: Workspace
+  declare user?: User
 }
 
 WorkspaceMember.init(

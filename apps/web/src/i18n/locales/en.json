@@ -4,10 +4,16 @@
   },
   "nav": {
     "home": "Home",
+    "workspaces": "Workspaces",
     "statistics": "Statistics",
     "deeplinks": "Deeplinks",
     "qr": "QR Codes",
     "logout": "Logout"
+  },
+  "common": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving..."
   },
   "home": {
     "welcome": "Welcome back",
@@ -38,10 +44,93 @@
   },
   "deeplinks": {
     "title": "My links",
+    "subtitle": "Manage and track your short links.",
     "search": "Search links",
     "create": "Create link",
     "copySuccess": "Link copied to clipboard",
-    "copyError": "Unable to copy link"
+    "copyError": "Unable to copy link",
+    "sort": {
+      "recent": "Most recent",
+      "performance": "Performance",
+      "old": "Oldest"
+    },
+    "status": {
+      "active": "Active",
+      "archived": "Archived",
+      "deleted": "Deleted"
+    },
+    "form": {
+      "originalUrl": "Original URL",
+      "originalUrlPlaceholder": "https://example.com/my-page",
+      "label": "Label",
+      "labelPlaceholder": "Friendly name for the link",
+      "slug": "Slug",
+      "slugPlaceholder": "Custom slug (optional)",
+      "domain": "Domain"
+    },
+    "actions": {
+      "details": "Details",
+      "stats": "Statistics",
+      "copy": "Copy link",
+      "transfer": "Transfer",
+      "archive": "Archive",
+      "unarchive": "Restore",
+      "delete": "Delete"
+    },
+    "table": {
+      "name": "Name",
+      "original": "Original URL",
+      "clicks": "Clicks",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "transfer": {
+      "title": "Transfer {{name}}",
+      "description": "Move this link to another workspace.",
+      "targetWorkspace": "Target workspace",
+      "domain": "Domain",
+      "loadingDomains": "Loading domains...",
+      "noDomain": "No verified domain available in this workspace.",
+      "noWorkspace": "No eligible workspace available.",
+      "submitting": "Transferring...",
+      "confirm": "Confirm transfer",
+      "loadDomainsError": "Unable to load domains for the target workspace."
+    },
+    "empty": "No links for this view",
+    "toast": {
+      "created": {
+        "title": "Link created",
+        "description": "Your short link is live."
+      },
+      "createError": {
+        "title": "Unable to create link"
+      },
+      "archived": {
+        "title": "Link archived"
+      },
+      "archiveError": {
+        "title": "Unable to archive link"
+      },
+      "unarchived": {
+        "title": "Link restored"
+      },
+      "unarchiveError": {
+        "title": "Unable to restore link"
+      },
+      "deleted": {
+        "title": "Link deleted"
+      },
+      "deleteError": {
+        "title": "Unable to delete link"
+      },
+      "transferred": {
+        "title": "Link transferred",
+        "description": "The link has been moved to the selected workspace."
+      },
+      "transferError": {
+        "title": "Transfer failed"
+      }
+    }
   },
   "qr": {
     "title": "My QR codes",
@@ -55,6 +144,12 @@
     "signin": "Sign in",
     "signup": "Create account",
     "oauthGithub": "Continue with GitHub",
-    "oauthDiscord": "Continue with Discord"
+    "oauthDiscord": "Continue with Discord",
+    "signupDisabledNotice": "Sign-ups are disabled by the administrator.",
+    "inviteButton": "I have an invitation",
+    "inviteCancel": "Back to sign in",
+    "inviteCode": "Invitation code",
+    "invitePlaceholder": "Enter your invitation code",
+    "inviteRequired": "Please provide your invitation code."
   }
 }

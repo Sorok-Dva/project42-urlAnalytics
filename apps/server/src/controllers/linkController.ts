@@ -12,6 +12,7 @@ import {
   getLinkById,
   listLinks,
   moveLinkToProject,
+  transferLinkToWorkspace,
   togglePublicStats,
   unarchiveLink,
   updateLink
@@ -129,5 +130,26 @@ export const duplicate = asyncHandler(async (req: Request, res: Response) => {
 export const move = asyncHandler(async (req: Request, res: Response) => {
   if (!req.workspaceId) return res.status(401).json({ error: 'Unauthorized' })
   const link = await moveLinkToProject(req.params.id, req.body.projectId ?? null)
+  res.json({ link })
+})
+
+export const transfer = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.workspaceId || !req.currentUser) return res.status(401).json({ error: 'Unauthorized' })
+  const { workspaceId: targetWorkspaceId, domain, projectId } = req.body as {
+    workspaceId?: string
+    domain?: string
+    projectId?: string | null
+  }
+  if (!targetWorkspaceId) return res.status(400).json({ error: 'workspaceId is required' })
+
+  const link = await transferLinkToWorkspace({
+    linkId: req.params.id,
+    sourceWorkspaceId: req.workspaceId,
+    targetWorkspaceId,
+    requestedById: req.currentUser.id,
+    domain: domain ?? null,
+    projectId: projectId ?? null
+  })
+
   res.json({ link })
 })

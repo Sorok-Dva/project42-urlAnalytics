@@ -11,6 +11,7 @@ import { QrPreview } from "../components/QrPreview"
 import { DEFAULT_QR_DESIGN, downloadQr, designEquals, sanitizeDesign } from "../lib/qrDesign"
 import type { QrDesign } from "../types"
 import { getApiErrorMessage } from "../lib/apiError"
+import { useAuth } from "../stores/auth"
 
 const MODULE_OPTIONS: Array<{ id: QrDesign["modules"]; label: string }> = [
   { id: "dots-classic", label: "Classique" },
@@ -134,10 +135,11 @@ export const QrDesignPage = () => {
   const queryClient = useQueryClient()
   const { push } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const workspaceId = useAuth(state => state.workspaceId)
 
   const { data, isLoading } = useQuery({
-    queryKey: ["qr", qrId],
-    enabled: Boolean(qrId),
+    queryKey: ["qr", workspaceId, qrId],
+    enabled: Boolean(qrId && workspaceId),
     queryFn: () => fetchQrCode(qrId!),
   })
 

@@ -84,9 +84,9 @@ export const HomePage = () => {
   const rooms = useMemo(() => (workspaceId ? [`workspace:${workspaceId}`] : []), [workspaceId])
 
   const { data, isLoading, isFetching, error } = useQuery<OverviewResponse, ApiError>({
-    queryKey: ['overview', range],
+    queryKey: ['overview', workspaceId, range],
     queryFn: () => fetchOverview(range),
-    enabled: queryEnabled,
+    enabled: queryEnabled && Boolean(workspaceId),
     retry: false
   })
 
@@ -99,8 +99,8 @@ export const HomePage = () => {
 
   const invalidateOverview = useCallback(() => {
     if (!queryEnabled) return
-    queryClient.invalidateQueries({ queryKey: ['overview', range] })
-  }, [queryClient, range, queryEnabled])
+    queryClient.invalidateQueries({ queryKey: ['overview'] })
+  }, [queryClient, queryEnabled])
 
   useRealtimeAnalytics(queryEnabled ? rooms : [], invalidateOverview)
 

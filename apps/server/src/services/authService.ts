@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { nanoid } from 'nanoid'
+import { Transaction } from 'sequelize'
 import { User } from '../models/user'
 import { Workspace } from '../models/workspace'
 import { WorkspaceMember } from '../models/workspaceMember'
@@ -13,11 +14,15 @@ type JwtPayload = {
   workspaceId: string
 }
 
-export const registerUser = async (payload: {
-  email: string
-  password: string
-  name: string
-}) => {
+export const registerUser = async (
+  payload: {
+    email: string
+    password: string
+    name: string
+  },
+  options: { transaction?: Transaction } = {}
+) => {
+  const { transaction } = options
   const existing = await User.findOne({ where: { email: payload.email } })
   if (existing) throw new Error('Email already in use')
 
@@ -28,7 +33,7 @@ export const registerUser = async (payload: {
     name: payload.name,
     avatarUrl: null,
     timezone: 'UTC'
-  })
+  }, { transaction })
 
   const workspace = await Workspace.create({
     name: `${payload.name} workspace`,
@@ -41,13 +46,13 @@ export const registerUser = async (payload: {
       members: 5
     },
     isActive: true
-  })
+  }, { transaction })
 
   await WorkspaceMember.create({
     workspaceId: workspace.id,
     userId: user.id,
     role: 'owner'
-  })
+  }, { transaction })
 
   return { user, workspace }
 }
@@ -76,12 +81,4 @@ export const getUserById = async (id: string) => {
   return User.findByPk(id, {
     include: [{ model: WorkspaceMember, as: 'memberships' }]
   })
-}
-
-export const listWorkspacesForUser = async (userId: string) => {
-  const memberships = await WorkspaceMember.findAll({
-    where: { userId },
-    include: [{ model: Workspace, as: 'workspace' }]
-  })
-  return memberships.map(member => (member as any).workspace)
 }

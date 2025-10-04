@@ -9,6 +9,7 @@ import * as qrController from '../controllers/qrController'
 import * as webhookController from '../controllers/webhookController'
 import * as utilsController from '../controllers/utilsController'
 import * as dashboardController from '../controllers/dashboardController'
+import * as workspaceController from '../controllers/workspaceController'
 import { requireAuth } from '../middleware/auth'
 import { requireRole } from '../middleware/requireRole'
 import { apiRateLimit } from '../middleware/rateLimit'
@@ -19,10 +20,19 @@ router.post('/auth/register', authController.register)
 router.post('/auth/login', authController.login)
 router.get('/auth/features', authController.features)
 router.get('/auth/me', requireAuth, authController.current)
+router.post('/auth/switch', requireAuth, authController.switchWorkspace)
 router.get('/public/links/:token', publicStatsController.linkStats)
 router.get('/public/projects/:token', publicStatsController.projectStats)
 
 router.use(requireAuth, apiRateLimit)
+
+router.get('/workspaces', workspaceController.list)
+router.post('/workspaces', workspaceController.create)
+router.get('/workspaces/:id', workspaceController.detail)
+router.get('/workspaces/:id/members', workspaceController.members)
+router.post('/workspaces/:id/members', workspaceController.invite)
+router.patch('/workspaces/:id', workspaceController.update)
+router.get('/workspaces/:id/domains', workspaceController.domains)
 
 router.get('/dashboard', dashboardController.overview)
 
@@ -35,6 +45,7 @@ router.delete('/links/:id', requireRole('admin'), linkController.remove)
 router.post('/links/:id/duplicate', requireRole('member'), linkController.duplicate)
 router.post('/links/:id/move', requireRole('member'), linkController.move)
 router.post('/links/:id/public', requireRole('member'), linkController.togglePublic)
+router.post('/links/:id/transfer', requireRole('admin'), linkController.transfer)
 router.get('/links/:id/stats', linkController.analytics)
 router.get('/links/:id/export', linkController.exportStats)
 router.get('/links/:id', linkController.detail)
@@ -56,6 +67,7 @@ router.get('/qr/:id/download', qrController.download)
 router.get('/qr/:id', qrController.detail)
 router.patch('/qr/:id', requireRole('member'), qrController.update)
 router.delete('/qr/:id', requireRole('member'), qrController.remove)
+router.post('/qr/:id/transfer', requireRole('admin'), qrController.transfer)
 
 router.get('/webhooks', requireRole('admin'), webhookController.list)
 router.post('/webhooks', requireRole('admin'), webhookController.create)

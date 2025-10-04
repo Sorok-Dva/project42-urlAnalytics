@@ -4,10 +4,16 @@
   },
   "nav": {
     "home": "Accueil",
+    "workspaces": "Espaces de travail",
     "statistics": "Statistiques",
     "deeplinks": "Liens",
     "qr": "QR Codes",
     "logout": "Déconnexion"
+  },
+  "common": {
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "saving": "Enregistrement..."
   },
   "home": {
     "welcome": "Bon retour",
@@ -38,10 +44,93 @@
   },
   "deeplinks": {
     "title": "Mes liens",
+    "subtitle": "Gérez vos liens courts et suivez leurs performances.",
     "search": "Rechercher un lien",
     "create": "Créer un lien",
     "copySuccess": "Lien copié dans le presse-papiers",
-    "copyError": "Impossible de copier le lien"
+    "copyError": "Impossible de copier le lien",
+    "sort": {
+      "recent": "Plus récents",
+      "performance": "Performances",
+      "old": "Plus anciens"
+    },
+    "status": {
+      "active": "Actifs",
+      "archived": "Archivés",
+      "deleted": "Supprimés"
+    },
+    "form": {
+      "originalUrl": "URL d'origine",
+      "originalUrlPlaceholder": "https://exemple.com/ma-page",
+      "label": "Libellé",
+      "labelPlaceholder": "Nom lisible du lien",
+      "slug": "Slug",
+      "slugPlaceholder": "Slug personnalisé (optionnel)",
+      "domain": "Domaine"
+    },
+    "actions": {
+      "details": "Détails",
+      "stats": "Statistiques",
+      "copy": "Copier le lien",
+      "transfer": "Transférer",
+      "archive": "Archiver",
+      "unarchive": "Restaurer",
+      "delete": "Supprimer"
+    },
+    "table": {
+      "name": "Nom",
+      "original": "URL d'origine",
+      "clicks": "Clics",
+      "status": "Statut",
+      "actions": "Actions"
+    },
+    "transfer": {
+      "title": "Transférer {{name}}",
+      "description": "Déplacez ce lien vers un autre espace de travail.",
+      "targetWorkspace": "Espace de travail cible",
+      "domain": "Domaine",
+      "loadingDomains": "Chargement des domaines...",
+      "noDomain": "Aucun domaine vérifié disponible dans cet espace de travail.",
+      "noWorkspace": "Aucun espace de travail disponible pour le transfert.",
+      "submitting": "Transfert...",
+      "confirm": "Confirmer le transfert",
+      "loadDomainsError": "Impossible de charger les domaines de l'espace de travail cible."
+    },
+    "empty": "Aucun lien pour cette vue",
+    "toast": {
+      "created": {
+        "title": "Lien créé",
+        "description": "Votre lien court est actif."
+      },
+      "createError": {
+        "title": "Erreur lors de la création"
+      },
+      "archived": {
+        "title": "Lien archivé"
+      },
+      "archiveError": {
+        "title": "Impossible d'archiver"
+      },
+      "unarchived": {
+        "title": "Lien restauré"
+      },
+      "unarchiveError": {
+        "title": "Impossible de restaurer"
+      },
+      "deleted": {
+        "title": "Lien supprimé"
+      },
+      "deleteError": {
+        "title": "Suppression impossible"
+      },
+      "transferred": {
+        "title": "Lien transféré",
+        "description": "Le lien a été déplacé vers l'espace de travail sélectionné."
+      },
+      "transferError": {
+        "title": "Transfert échoué"
+      }
+    }
   },
   "qr": {
     "title": "Mes QR codes",
@@ -55,6 +144,12 @@
     "signin": "Se connecter",
     "signup": "Créer un compte",
     "oauthGithub": "Continuer avec GitHub",
-    "oauthDiscord": "Continuer avec Discord"
+    "oauthDiscord": "Continuer avec Discord",
+    "signupDisabledNotice": "Inscriptions fermées par l'administrateur.",
+    "inviteButton": "J'ai une invitation",
+    "inviteCancel": "Retour à la connexion",
+    "inviteCode": "Code d'invitation",
+    "invitePlaceholder": "Saisissez votre code d'invitation",
+    "inviteRequired": "Veuillez renseigner votre code d'invitation."
   }
 }

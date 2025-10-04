@@ -40,6 +40,39 @@ export const DashboardTimeRange = [
 ] as const
 export type DashboardTimeRange = typeof DashboardTimeRange[number]
 
+export type WorkspaceMemberStatus = 'active' | 'pending'
+
+export interface WorkspacePlanLimits {
+  links?: number
+  qrCodes?: number
+  members?: number
+  [key: string]: unknown
+}
+
+export interface WorkspaceSummary {
+  id: string
+  name: string
+  slug: string
+  plan: 'free' | 'pro' | 'enterprise'
+  planLimits: WorkspacePlanLimits
+  isActive: boolean
+  role: WorkspaceRole
+  memberStatus: WorkspaceMemberStatus
+}
+
+export interface WorkspaceMemberSummary {
+  id: string
+  role: WorkspaceRole
+  status: WorkspaceMemberStatus
+  user: {
+    id: string
+    email: string
+    name: string
+    avatarUrl?: string | null
+  }
+  invitedById: string | null
+}
+
 export interface GeoRule {
   id: string
   priority: number
@@ -207,6 +240,7 @@ export const ApiLinkSchema = z.object({
   originalUrl: z.string().url(),
   slug: z.string().min(3),
   domain: z.string().min(1),
+  label: z.string().max(255).nullish(),
   projectId: z.string().uuid().nullish(),
   comment: z.string().max(2048).optional(),
   geoRules: z

@@ -13,11 +13,14 @@ export const AuthPage = () => {
   const { login, token } = useAuth()
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [form, setForm] = useState({ email: '', password: '', name: '' })
+  const [inviteCode, setInviteCode] = useState('')
+  const [invitationMode, setInvitationMode] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const envSignupDisabled = String(import.meta.env.VITE_DISABLE_SIGNUP ?? '').toLowerCase() === 'true'
   const [remoteSignupDisabled, setRemoteSignupDisabled] = useState(false)
   const signupDisabled = envSignupDisabled || remoteSignupDisabled
+  const registrationEnabled = !signupDisabled || invitationMode
 
   const isFormValid = (() => {
     const email = form.email.trim()
@@ -26,8 +29,9 @@ export const AuthPage = () => {
     if (!email || !password) return false
     if (!email.includes('@')) return false
     if (mode === 'register') {
-      if (signupDisabled) return false
+      if (!registrationEnabled) return false
       if (!name) return false
+      if (invitationMode && !inviteCode.trim()) return false
     }
     return true
   })()
@@ -42,11 +46,6 @@ export const AuthPage = () => {
     const password = form.password.trim()
     const name = form.name.trim()
 
-    if (mode === 'register' && signupDisabled) {
-      setError('Les inscriptions sont désactivées sur cette instance.')
-      return
-    }
-
     if (!email || !password || (mode === 'register' && !name)) {
       setError('Veuillez renseigner les champs requis')
       return
@@ -57,13 +56,28 @@ export const AuthPage = () => {
       return
     }
 
+    if (mode === 'register' && !registrationEnabled) {
+      setError(t('auth.signupDisabledNotice'))
+      return
+    }
+
+    if (mode === 'register' && invitationMode && !inviteCode.trim()) {
+      setError(t('auth.inviteRequired'))
+      return
+    }
+
     setLoading(true)
     setError(null)
     try {
       if (mode === 'login') {
         await login({ email, password })
       } else {
-        await registerRequest({ email, password, name })
+        await registerRequest({
+          email,
+          password,
+          name,
+          inviteCode: invitationMode ? inviteCode.trim() : undefined
+        })
         await login({ email, password })
       }
       navigate('/')
@@ -97,10 +111,10 @@ export const AuthPage = () => {
   }, [])
 
   useEffect(() => {
-    if (signupDisabled) {
+    if (signupDisabled && !invitationMode) {
       setMode('login')
     }
-  }, [signupDisabled])
+  }, [signupDisabled, invitationMode])
 
   return (
     <div className="relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-[#0b1120] via-[#1b1640] to-[#2d0f3a] px-6 py-12 text-slate-100">
@@ -142,13 +156,41 @@ export const AuthPage = () => {
               <h2 className="mt-2 text-3xl font-semibold text-white">{mode === 'login' ? t('auth.signin') : t('auth.signup')}</h2>
               <p className="mt-2 text-sm text-slate-400">Authentifiez-vous pour accéder à votre tableau de bord et analysez vos liens en direct.</p>
               {signupDisabled && (
-                <div className="mt-3 inline-flex items-center gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-1 text-xs text-rose-200">
-                  Inscriptions fermées par l'administrateur.
+                <div className="mt-3 space-y-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-3 text-xs text-rose-200">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <span>{t('auth.signupDisabledNotice')}</span>
+                    {!invitationMode ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setError(null)
+                          setInvitationMode(true)
+                          setMode('register')
+                        }}
+                        className="inline-flex items-center gap-2 rounded-md border border-rose-400/40 px-3 py-1 text-rose-100 transition hover:border-rose-300 hover:bg-rose-400/10"
+                      >
+                        {t('auth.inviteButton')}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setInvitationMode(false)
+                          setMode('login')
+                          setInviteCode('')
+                          setError(null)
+                        }}
+                        className="inline-flex items-center gap-2 rounded-md border border-rose-400/40 px-3 py-1 text-rose-100 transition hover:border-rose-300 hover:bg-rose-400/10"
+                      >
+                        {t('auth.inviteCancel')}
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
 
-            {mode === 'register' && !signupDisabled && (
+            {mode === 'register' && registrationEnabled && (
               <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                 Nom complet
                 <input
@@ -189,6 +231,20 @@ export const AuthPage = () => {
               />
             </label>
 
+            {mode === 'register' && invitationMode && (
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                {t('auth.inviteCode')}
+                <input
+                  value={inviteCode}
+                  onChange={event => setInviteCode(event.target.value)}
+                  className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-sm text-slate-100 focus:border-accent focus:outline-none"
+                  placeholder={t('auth.invitePlaceholder')}
+                  autoComplete="one-time-code"
+                  required
+                />
+              </label>
+            )}
+
             {error && <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-sm text-rose-200">{error}</p>}
 
             <button
@@ -206,6 +262,8 @@ export const AuthPage = () => {
                   type="button"
                   onClick={() => {
                     setError(null)
+                    setInvitationMode(false)
+                    setInviteCode('')
                     setMode(mode === 'login' ? 'register' : 'login')
                   }}
                   className="text-accent hover:underline"

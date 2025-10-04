@@ -12,6 +12,7 @@ import { Skeleton } from '../components/Skeleton'
 import { StatusBadge } from '../components/StatusBadge'
 import dayjs from '../lib/dayjs'
 import { getApiErrorMessage } from '../lib/apiError'
+import { useAuth } from '../stores/auth'
 
 interface GeoRuleForm {
   priority: number
@@ -30,21 +31,31 @@ export const LinkDetailsPage = () => {
   const params = useParams<{ linkId: string }>()
   const queryClient = useQueryClient()
   const { push } = useToast()
+  const workspaceId = useAuth(state => state.workspaceId)
 
   const linkId = params.linkId ?? ''
 
   const { data: link, isLoading } = useQuery({
-    queryKey: ['link', linkId],
-    enabled: Boolean(linkId),
+    queryKey: ['link', workspaceId, linkId],
+    enabled: Boolean(linkId && workspaceId),
     queryFn: () => fetchLinkDetails(linkId)
   })
-  const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
-  const { data: domains } = useQuery({ queryKey: ['domains'], queryFn: fetchDomains })
+  const { data: projects } = useQuery({
+    queryKey: ['projects', workspaceId],
+    enabled: Boolean(workspaceId),
+    queryFn: fetchProjects
+  })
+  const { data: domains } = useQuery({
+    queryKey: ['domains', workspaceId],
+    enabled: Boolean(workspaceId),
+    queryFn: fetchDomains
+  })
   const fallbackDomain = import.meta.env.VITE_DEFAULT_DOMAIN ?? 'p-42.fr'
 
   const [form, setForm] = useState({
     originalUrl: '',
     slug: '',
+    label: '',
     comment: '',
     domain: '',
     projectId: '',
@@ -60,6 +71,7 @@ export const LinkDetailsPage = () => {
     setForm({
       originalUrl: link.originalUrl,
       slug: link.slug,
+      label: link.label ?? '',
       comment: link.comment ?? '',
       domain: link.domain?.domain ?? '',
       projectId: link.projectId ?? '',
@@ -106,11 +118,21 @@ export const LinkDetailsPage = () => {
     return Array.from(map.values())
   }, [domains, fallbackDomain])
 
+  const statusLabels = useMemo(
+    () => ({
+      active: t('deeplinks.status.active'),
+      archived: t('deeplinks.status.archived'),
+      deleted: t('deeplinks.status.deleted')
+    }),
+    [t]
+  )
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     await updateMutation.mutateAsync({
       originalUrl: form.originalUrl,
       slug: form.slug,
+      label: form.label.trim() ? form.label.trim() : null,
       comment: form.comment,
       domain: form.domain,
       projectId: form.projectId || null,
@@ -170,11 +192,18 @@ export const LinkDetailsPage = () => {
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold text-slate-100">{link.slug}</h1>
-          <p className="mt-1 text-sm text-slate-400">{link.originalUrl}</p>
+          <h1 className="text-3xl font-semibold text-slate-100">{link.label ?? link.slug}</h1>
+          <p className="mt-1 text-sm text-slate-400">{link.slug}</p>
+          <p className="text-xs text-slate-500">{link.originalUrl}</p>
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-            <StatusBadge label={link.status} tone={link.status === 'archived' ? 'warning' : 'success'} />
-            <StatusBadge label={link.publicStats ? 'Public stats' : 'Private'} tone={link.publicStats ? 'success' : 'neutral'} />
+            <StatusBadge
+              label={statusLabels[link.status] ?? link.status}
+              tone={link.status === 'archived' ? 'warning' : 'success'}
+            />
+            <StatusBadge
+              label={link.publicStats ? 'Statistiques publiques' : 'Statistiques privées'}
+              tone={link.publicStats ? 'success' : 'neutral'}
+            />
             {shareUrl && <code className="rounded bg-slate-800/80 px-3 py-1 text-slate-300">{shareUrl}</code>}
           </div>
         </div>
@@ -190,7 +219,7 @@ export const LinkDetailsPage = () => {
         <Card title="Destination" description="URL d'origine et slug accessible" >
           <div className="grid gap-4">
             <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Original URL
+              URL d'origine
               <input
                 value={form.originalUrl}
                 onChange={event => setForm(prev => ({ ...prev, originalUrl: event.target.value }))}
@@ -198,6 +227,15 @@ export const LinkDetailsPage = () => {
               />
             </label>
             <div className="grid gap-4 md:grid-cols-2">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                Libellé
+                <input
+                  value={form.label}
+                  onChange={event => setForm(prev => ({ ...prev, label: event.target.value }))}
+                  className="mt-2 w-full rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 focus:border-accent focus:outline-none"
+                  placeholder="Nom lisible"
+                />
+              </label>
               <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                 Slug
                 <input
@@ -213,7 +251,7 @@ export const LinkDetailsPage = () => {
                   onChange={event => setForm(prev => ({ ...prev, domain: event.target.value }))}
                   className="mt-2 w-full rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 focus:border-accent focus:outline-none"
                 >
-                  <option value="">{t('deeplinks.search')}</option>
+                  <option value="">Sélectionner un domaine</option>
                   {filteredDomains.map(domain => (
                     <option key={domain.id} value={domain.domain}>
                       {domain.domain}
@@ -238,7 +276,7 @@ export const LinkDetailsPage = () => {
           <div className="grid gap-4">
             <div className="grid gap-4 md:grid-cols-2">
               <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                Expiration date
+                Date d'expiration
                 <input
                   type="datetime-local"
                   value={form.expireAt}
@@ -247,7 +285,7 @@ export const LinkDetailsPage = () => {
                 />
               </label>
               <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                Max clicks
+                Clics maximum
                 <input
                   type="number"
                   value={form.maxClicks}
@@ -257,7 +295,7 @@ export const LinkDetailsPage = () => {
               </label>
             </div>
             <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Fallback URL
+              URL de secours
               <input
                 value={form.fallbackUrl}
                 onChange={event => setForm(prev => ({ ...prev, fallbackUrl: event.target.value }))}
@@ -319,7 +357,7 @@ export const LinkDetailsPage = () => {
                   onChange={event => handleGeoRuleChange(index, 'scope', event.target.value)}
                   className="rounded-md border border-slate-700 bg-slate-800 px-2 py-2 text-sm text-slate-100"
                 >
-                  <option value="country">Country</option>
+                  <option value="country">Pays</option>
                   <option value="continent">Continent</option>
                 </select>
                 <input
