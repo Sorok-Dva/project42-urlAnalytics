@@ -9,6 +9,9 @@ import { QrCode } from './qrCode'
 import { ApiKey } from './apiKey'
 import { Webhook } from './webhook'
 import { SignupInvite } from './signupInvite'
+import { SubscriptionPlan } from './subscriptionPlan'
+import { LinkAddon } from './linkAddon'
+import { AppSetting } from './appSetting'
 
 export const models = {
   User,
@@ -21,11 +24,16 @@ export const models = {
   QrCode,
   ApiKey,
   Webhook,
-  SignupInvite
+  SignupInvite,
+  SubscriptionPlan,
+  LinkAddon,
+  AppSetting
 }
 
 export const registerAssociations = () => {
   Workspace.belongsTo(User, { foreignKey: 'ownerId', as: 'owner' })
+  Workspace.belongsTo(SubscriptionPlan, { foreignKey: 'planId', as: 'subscriptionPlan' })
+  SubscriptionPlan.hasMany(Workspace, { foreignKey: 'planId', as: 'workspaces' })
   WorkspaceMember.belongsTo(Workspace, { foreignKey: 'workspaceId', as: 'workspace' })
   WorkspaceMember.belongsTo(User, { foreignKey: 'userId', as: 'user' })
   User.hasMany(WorkspaceMember, { foreignKey: 'userId', as: 'memberships' })

@@ -14,6 +14,9 @@ import type {
   WorkspaceMemberSummary,
   WorkspaceRole,
   WorkspacePlanLimits,
+  SubscriptionPlan,
+  LinkAddon,
+  AppSettingsMap,
   UserRole
 } from '@p42/shared'
 
@@ -59,9 +62,10 @@ export interface AdminWorkspaceSummary {
   id: string
   name: string
   slug: string
-  plan: 'free' | 'pro' | 'enterprise'
+  plan: string
   planLimits: WorkspacePlanLimits
   isActive: boolean
+  planId?: string | null
   createdAt?: string
   owner: {
     id: string
@@ -123,7 +127,10 @@ export type {
   WorkspaceDetail,
   WorkspaceUsage,
   WorkspaceMemberSummary,
-  WorkspaceRole
+  WorkspaceRole,
+  SubscriptionPlan,
+  LinkAddon,
+  AppSettingsMap
 }
 
 export interface Project {

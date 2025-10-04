@@ -5,7 +5,9 @@ import { Transaction } from 'sequelize'
 import { User } from '../models/user'
 import { Workspace } from '../models/workspace'
 import { WorkspaceMember } from '../models/workspaceMember'
+import { SubscriptionPlan } from '../models/subscriptionPlan'
 import { env } from '../config/env'
+import { computeWorkspacePlanLimits } from './workspaceService'
 
 const tokenExpiry = '30d'
 
@@ -36,17 +38,20 @@ export const registerUser = async (
     timezone: 'UTC'
   }, { transaction })
 
+  const defaultPlan = await SubscriptionPlan.findOne({
+    where: { isDefault: true, isActive: true },
+    order: [['createdAt', 'ASC']]
+  })
+
+  const planLimits = await computeWorkspacePlanLimits(defaultPlan)
+
   const workspace = await Workspace.create({
     name: 'Personnel',
     slug: `ws-${nanoid(10)}`,
     ownerId: user.id,
-    plan: 'free',
-    planLimits: {
-      links: 10,
-      qrCodes: 500,
-      members: 5,
-      workspaces: 1
-    },
+    plan: defaultPlan?.slug ?? 'free',
+    planId: defaultPlan?.id ?? null,
+    planLimits,
     isActive: true,
     isDefault: true
   }, { transaction })

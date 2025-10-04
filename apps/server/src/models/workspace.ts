@@ -6,25 +6,30 @@ export interface WorkspaceAttributes {
   name: string
   slug: string
   ownerId: string
-  plan: 'free' | 'pro' | 'enterprise'
+  plan: string
   planLimits: Record<string, unknown>
   isActive: boolean
   isDefault: boolean
+  planId?: string | null
   createdAt?: Date
   updatedAt?: Date
 }
 
-export type WorkspaceCreationAttributes = Optional<WorkspaceAttributes, 'id' | 'plan' | 'planLimits' | 'isActive' | 'isDefault'>
+export type WorkspaceCreationAttributes = Optional<
+  WorkspaceAttributes,
+  'id' | 'plan' | 'planLimits' | 'isActive' | 'isDefault' | 'planId'
+>
 
 export class Workspace extends Model<WorkspaceAttributes, WorkspaceCreationAttributes> implements WorkspaceAttributes {
   declare id: string
   declare name: string
   declare slug: string
   declare ownerId: string
-  declare plan: 'free' | 'pro' | 'enterprise'
+  declare plan: string
   declare planLimits: Record<string, unknown>
   declare isActive: boolean
   declare isDefault: boolean
+  declare planId: string | null
   declare readonly createdAt: Date
   declare readonly updatedAt: Date
 
@@ -68,9 +73,9 @@ Workspace.init(
       type: DataTypes.JSON,
       allowNull: false,
       defaultValue: {
-        links: 1000,
+        links: 10,
         qrCodes: 500,
-        members: 10,
+        members: 5,
         workspaces: 1
       }
     },
@@ -83,6 +88,11 @@ Workspace.init(
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false
+    },
+    planId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      field: 'plan_id'
     }
   },
   {

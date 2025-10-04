@@ -11,7 +11,9 @@ import { Project } from '../models/project'
 import { Domain } from '../models/domain'
 import { Webhook } from '../models/webhook'
 import { ApiKey } from '../models/apiKey'
+import { SubscriptionPlan } from '../models/subscriptionPlan'
 import { sequelize } from '../config/database'
+import { getNumericSetting } from './settingsService'
 
 const withStatus = (error: Error, status: number) => {
   ;(error as any).status = status
@@ -31,6 +33,47 @@ const resourceCounters = {
 } as const
 
 const DEFAULT_FREE_WORKSPACE_LIMIT = 1
+const DEFAULT_LINK_LIMIT = 10
+const DEFAULT_QR_LIMIT = 500
+const DEFAULT_MEMBERS_LIMIT = 5
+
+export const computeWorkspacePlanLimits = async (plan?: SubscriptionPlan | null): Promise<WorkspacePlanLimits> => {
+  const [settingsWorkspaceLimit, settingsLinkLimit, settingsQrLimit, settingsMembersLimit] = await Promise.all([
+    getNumericSetting('defaults.workspaceLimit', DEFAULT_FREE_WORKSPACE_LIMIT),
+    getNumericSetting('defaults.linkLimit', DEFAULT_LINK_LIMIT),
+    getNumericSetting('defaults.qrLimit', DEFAULT_QR_LIMIT),
+    getNumericSetting('defaults.membersLimit', DEFAULT_MEMBERS_LIMIT)
+  ])
+
+  const planLimits: WorkspacePlanLimits = {
+    qrCodes: settingsQrLimit,
+    members: settingsMembersLimit
+  }
+
+  const linkLimit =
+    plan?.linkLimitPerWorkspace === null
+      ? undefined
+      : typeof plan?.linkLimitPerWorkspace === 'number'
+        ? plan.linkLimitPerWorkspace
+        : settingsLinkLimit
+
+  if (linkLimit !== undefined) {
+    planLimits.links = linkLimit
+  }
+
+  const workspaceLimit =
+    plan?.workspaceLimit === null
+      ? undefined
+      : typeof plan?.workspaceLimit === 'number'
+        ? plan.workspaceLimit
+        : settingsWorkspaceLimit
+
+  if (workspaceLimit !== undefined) {
+    planLimits.workspaces = workspaceLimit
+  }
+
+  return planLimits
+}
 
 const resolveWorkspaceLimitValue = (plan: string, limit?: number | null): number | undefined => {
   if (typeof limit === 'number' && Number.isFinite(limit) && limit > 0) {
@@ -47,7 +90,7 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
     Link.count({ where: { workspaceId } }),
     Link.count({ where: { workspaceId, status: 'active' } }),
     QrCode.count({ where: { workspaceId } }),
-    LinkEvent.count({ where: { workspaceId } })
+    LinkEvent.count({ where: { workspaceId, softDeleted: false } })
   ])
 
   return { links, activeLinks, qrCodes, analytics }
@@ -128,19 +171,29 @@ export const createWorkspace = async (payload: { ownerId: string; name: string }
     order: [['isDefault', 'DESC'], ['createdAt', 'ASC']]
   })
 
+  let inheritedPlan: SubscriptionPlan | null = null
+  if (ownerDefault?.planId) {
+    inheritedPlan = await SubscriptionPlan.findByPk(ownerDefault.planId)
+  }
+  if (!inheritedPlan) {
+    inheritedPlan = await SubscriptionPlan.findOne({
+      where: { isDefault: true, isActive: true },
+      order: [['createdAt', 'ASC']]
+    })
+  }
+
+  const planLimits = await computeWorkspacePlanLimits(inheritedPlan)
+
+  const planSlug = inheritedPlan?.slug ?? ownerDefault?.plan ?? 'free'
+  const planId = inheritedPlan?.id ?? ownerDefault?.planId ?? null
+
   const workspace = await Workspace.create({
     name: trimmed,
     slug,
     ownerId: payload.ownerId,
-    plan: ownerDefault?.plan ?? 'free',
-    planLimits: ownerDefault?.planLimits
-      ? { ...(ownerDefault.planLimits as WorkspacePlanLimits) }
-      : {
-        links: 10,
-        qrCodes: 500,
-        members: 5,
-        workspaces: 1
-      },
+    plan: planSlug,
+    planId,
+    planLimits,
     isDefault: false
   })
 
@@ -188,10 +241,11 @@ export const listWorkspacesForUser = async (userId: string): Promise<WorkspaceSu
         isActive: workspace.isActive,
         role: membership.role,
         memberStatus: membership.status,
-        isDefault: workspace.isDefault
+        isDefault: workspace.isDefault,
+        planId: workspace.planId ?? null
       } satisfies WorkspaceSummary
     })
-    .filter((item): item is WorkspaceSummary => Boolean(item))
+    .filter((item): item is WorkspaceSummary => item !== null)
 }
 
 export const listWorkspaceMembers = async (workspaceId: string): Promise<WorkspaceMemberSummary[]> => {
@@ -217,6 +271,31 @@ export const listWorkspaceMembers = async (workspaceId: string): Promise<Workspa
 
 export const findWorkspaceMembership = async (workspaceId: string, userId: string) => {
   return WorkspaceMember.findOne({ where: { workspaceId, userId } })
+}
+
+export const listActiveSubscriptionPlans = async () => {
+  return SubscriptionPlan.findAll({
+    where: { isActive: true },
+    order: [
+      ['priceCents', 'ASC'],
+      ['createdAt', 'ASC']
+    ]
+  })
+}
+
+export const updateWorkspacePlanSelection = async (workspaceId: string, planId: string) => {
+  const workspace = await getWorkspace(workspaceId)
+  const plan = await SubscriptionPlan.findOne({ where: { id: planId, isActive: true } })
+  if (!plan) throw withStatus(new Error('Plan not found or inactive'), 404)
+
+  const limits = await computeWorkspacePlanLimits(plan)
+
+  workspace.planId = plan.id
+  workspace.plan = plan.slug
+  workspace.planLimits = limits
+  await workspace.save()
+
+  return workspace
 }
 
 export const inviteWorkspaceMember = async (payload: {

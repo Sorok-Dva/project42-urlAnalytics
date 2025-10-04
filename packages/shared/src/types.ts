@@ -62,17 +62,43 @@ export interface WorkspaceSummary {
   id: string
   name: string
   slug: string
-  plan: 'free' | 'pro' | 'enterprise'
+  plan: string
   planLimits: WorkspacePlanLimits
   isActive: boolean
   role: WorkspaceRole
   memberStatus: WorkspaceMemberStatus
   isDefault: boolean
+  planId?: string | null
 }
 
 export interface WorkspaceDetail extends WorkspaceSummary {
   usage: WorkspaceUsage
 }
+
+export interface SubscriptionPlan {
+  id: string
+  slug: string
+  name: string
+  description?: string | null
+  priceCents: number
+  currency: string
+  workspaceLimit?: number | null
+  linkLimitPerWorkspace?: number | null
+  isDefault: boolean
+  isActive: boolean
+}
+
+export interface LinkAddon {
+  id: string
+  name: string
+  description?: string | null
+  additionalLinks: number
+  priceCents: number
+  currency: string
+  isActive: boolean
+}
+
+export type AppSettingsMap = Record<string, unknown>
 
 export interface WorkspaceMemberSummary {
   id: string

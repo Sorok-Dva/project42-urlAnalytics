@@ -1,10 +1,17 @@
 import type { WorkspaceSummary } from '../types'
 
-export const planDisplayLabels: Record<'free' | 'pro' | 'enterprise', string> = {
+const planDisplayLabels: Record<string, string> = {
   free: 'Freemium',
   pro: 'Premium',
   enterprise: 'Entreprise'
 }
+
+const humanize = (value: string) =>
+  value
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, char => char.toUpperCase())
+
+export const getPlanDisplayName = (plan: string) => planDisplayLabels[plan] ?? humanize(plan)
 
 export const normalizeLimit = (value: unknown): number | undefined => {
   if (value === null || value === undefined) return undefined

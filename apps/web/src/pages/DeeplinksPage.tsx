@@ -19,8 +19,7 @@ import type { Link } from '../types'
 import { useAuth } from '../stores/auth'
 import { fetchWorkspaceDomains, createWorkspaceRequest } from '../api/workspaces'
 import { Skeleton } from '../components/Skeleton'
-import { MockPaymentDialog } from '../components/MockPaymentDialog'
-import { planDisplayLabels, resolveLinkLimit } from '../lib/planLimits'
+import { getPlanDisplayName, resolveLinkLimit } from '../lib/planLimits'
 import {
   Eye,
   BarChart3,
@@ -66,7 +65,6 @@ export const DeeplinksPage = () => {
   const [bulkTransferDomains, setBulkTransferDomains] = useState<WorkspaceDomain[]>([])
   const [bulkTransferDomainsLoading, setBulkTransferDomainsLoading] = useState(false)
   const [newWorkspaceName, setNewWorkspaceName] = useState('')
-  const [showLinkPaymentModal, setShowLinkPaymentModal] = useState(false)
   const selectAllRef = useRef<HTMLInputElement | null>(null)
 
   const workspaces = useAuth(state => state.workspaces)
@@ -78,7 +76,7 @@ export const DeeplinksPage = () => {
     () => workspaces.find(item => item.id === workspaceId) ?? null,
     [workspaces, workspaceId]
   )
-  const planLabel = activeWorkspace ? planDisplayLabels[activeWorkspace.plan] ?? activeWorkspace.plan : '—'
+  const planLabel = activeWorkspace ? getPlanDisplayName(activeWorkspace.plan) : '—'
   const linkLimit = useMemo(
     () => resolveLinkLimit(activeWorkspace),
     [activeWorkspace?.plan, activeWorkspace?.planLimits?.links]
@@ -121,7 +119,6 @@ export const DeeplinksPage = () => {
   const remainingLinks = linkLimit !== undefined ? Math.max(linkLimit - totalLinks, 0) : undefined
   const linkUsageLabel = linkLimit !== undefined ? `${totalLinks}/${linkLimit}` : `${totalLinks}`
   const linkLimitLabel = linkLimit !== undefined ? `${linkLimit}` : 'illimitée'
-  const canUpgradeLinks = linkLimit !== undefined
   const filteredLinks = linksQuery.data?.links ?? []
   const totalPages = Math.max(1, Math.ceil(totalLinks / pageSize))
   const pageStart = totalLinks === 0 ? 0 : (page - 1) * pageSize + 1
@@ -597,7 +594,6 @@ export const DeeplinksPage = () => {
         title: t('deeplinks.limitReached.title', 'Limite atteinte'),
         description: t('deeplinks.limitReached.description', 'Augmentez votre quota pour ajouter de nouveaux liens.')
       })
-      setShowLinkPaymentModal(true)
       return
     }
     await createMutation.mutateAsync({
@@ -646,12 +642,6 @@ export const DeeplinksPage = () => {
             ))}
           </select>
           <button
-            onClick={() => setShowLinkPaymentModal(true)}
-            className="flex items-center gap-1.5 rounded-md border border-accent/50 bg-accent/15 px-3 py-2 text-sm font-medium text-accent transition hover:bg-accent/25"
-          >
-            Augmenter la limite de lien
-          </button>
-          <button
             onClick={() => setShowForm(current => !current)}
             disabled={linkLimitReached}
             className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-2 text-sm font-medium text-white transition hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-60"
@@ -682,17 +672,10 @@ export const DeeplinksPage = () => {
             )}
             {linkLimitReached && (
               <p className="font-medium text-amber-300">
-                Vous avez atteint la capacité maximale de liens pour ce workspace.
+                Limite atteinte : contactez votre administrateur pour augmenter votre quota.
               </p>
             )}
           </div>
-          <button
-            onClick={() => setShowLinkPaymentModal(true)}
-            disabled={!canUpgradeLinks}
-            className="inline-flex items-center justify-center rounded-lg border border-accent/50 bg-accent/20 px-4 py-2 text-sm font-semibold text-accent transition hover:bg-accent/30 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Augmenter la limite de lien
-          </button>
         </div>
       )}
 
@@ -754,7 +737,7 @@ export const DeeplinksPage = () => {
             <button
               type="submit"
               className="flex items-center gap-1.5 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={createMutation.isPending || linkLimitReached}
+            disabled={createMutation.isPending || linkLimitReached}
             >
               {createMutation.isPending ? t('common.saving') : t('common.save')}
             </button>
@@ -1266,21 +1249,6 @@ export const DeeplinksPage = () => {
         </form>
       </div>
     )}
-      <MockPaymentDialog
-        open={showLinkPaymentModal}
-        intent="links"
-        onClose={() => setShowLinkPaymentModal(false)}
-        onConfirm={option => {
-          setShowLinkPaymentModal(false)
-          push({
-            title: t('deeplinks.limitReached.mockPaymentTitle', 'Simulation de paiement'),
-            description: t('deeplinks.limitReached.mockPaymentDescription', {
-              option: option.label,
-              defaultValue: `${option.label} sélectionné. Validez côté équipe pour activer le nouveau quota.`
-            })
-          })
-        }}
-      />
   </div>
 )
 }

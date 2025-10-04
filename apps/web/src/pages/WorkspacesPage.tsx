@@ -12,8 +12,8 @@ import type { WorkspaceDetail, WorkspaceMemberSummary, WorkspaceRole } from '../
 import { useToast } from '../providers/ToastProvider'
 import { Card } from '../components/Card'
 import { StatusBadge } from '../components/StatusBadge'
-import { MockPaymentDialog } from '../components/MockPaymentDialog'
-import { planDisplayLabels, resolveLinkLimit, resolveWorkspaceLimit } from '../lib/planLimits'
+import { WorkspacePlanDialog } from '../components/WorkspacePlanDialog'
+import { getPlanDisplayName, resolveLinkLimit, resolveWorkspaceLimit } from '../lib/planLimits'
 
 const roleLabels: Record<WorkspaceRole, string> = {
   owner: 'Propriétaire',
@@ -38,13 +38,13 @@ export const WorkspacesPage = () => {
   const [inviteRole, setInviteRole] = useState<WorkspaceRole>('member')
   const [renameValue, setRenameValue] = useState('')
   const [renaming, setRenaming] = useState(false)
-  const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [workspaceDetail, setWorkspaceDetail] = useState<WorkspaceDetail | null>(null)
   const [workspaceDetailLoading, setWorkspaceDetailLoading] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteStrategy, setDeleteStrategy] = useState<'transfer' | 'purge'>('transfer')
   const [deleteTargetWorkspaceId, setDeleteTargetWorkspaceId] = useState('')
   const [deleting, setDeleting] = useState(false)
+  const [planDialogWorkspaceId, setPlanDialogWorkspaceId] = useState<string | null>(null)
 
   const primaryWorkspace = useMemo(
     () => workspaces.find(item => item.id === workspaceId) ?? workspaces[0] ?? null,
@@ -54,6 +54,11 @@ export const WorkspacesPage = () => {
   const selectedWorkspace = useMemo(
     () => workspaces.find(item => item.id === selectedWorkspaceId) ?? null,
     [selectedWorkspaceId, workspaces]
+  )
+
+  const planDialogWorkspace = useMemo(
+    () => (planDialogWorkspaceId ? workspaces.find(item => item.id === planDialogWorkspaceId) ?? null : null),
+    [planDialogWorkspaceId, workspaces]
   )
 
   const workspaceLimit = useMemo(
@@ -69,12 +74,13 @@ export const WorkspacesPage = () => {
   const workspaceCount = workspaces.length
   const workspaceLimitReached = workspaceLimit !== undefined && workspaceCount >= workspaceLimit
   const workspaceUsageLabel = workspaceLimit !== undefined ? `${workspaceCount}/${workspaceLimit}` : `${workspaceCount}`
-  const planLabel = primaryWorkspace ? planDisplayLabels[primaryWorkspace.plan] ?? primaryWorkspace.plan : '—'
+  const planLabel = primaryWorkspace ? getPlanDisplayName(primaryWorkspace.plan) : '—'
   const linkLimitLabel = linkLimitPerWorkspace !== undefined ? `${linkLimitPerWorkspace}` : 'illimitée'
   const workspaceUsageText = workspaceLimit !== undefined ? workspaceUsageLabel : `${workspaceCount} (illimité)`
   const selectedUsage = workspaceDetail?.usage ?? { links: 0, activeLinks: 0, qrCodes: 0, analytics: 0 }
   const selectedIsDefault = selectedWorkspace?.isDefault ?? false
   const workspaceIsEmpty = selectedUsage.links === 0 && selectedUsage.qrCodes === 0 && selectedUsage.analytics === 0
+  const canUpgradePrimary = primaryWorkspace ? ['owner', 'admin'].includes(primaryWorkspace.role) : false
 
   const transferableTargets = useMemo(
     () =>
@@ -265,16 +271,19 @@ export const WorkspacesPage = () => {
             </p>
             {workspaceLimitReached && (
               <p className="font-medium text-amber-300">
-                Vous avez atteint le nombre maximum d’espaces autorisés par votre plan.
+                Limite atteinte : mettez votre plan à niveau pour augmenter votre capacité.
               </p>
             )}
+            {workspaceLimitReached && canUpgradePrimary && primaryWorkspace && (
+              <button
+                type="button"
+                onClick={() => setPlanDialogWorkspaceId(primaryWorkspace.id)}
+                className="mt-2 inline-flex items-center justify-center rounded-md border border-accent/40 px-3 py-1.5 text-xs font-semibold text-accent transition hover:bg-accent/10"
+              >
+                Ajuster mon plan
+              </button>
+            )}
           </div>
-          <button
-            onClick={() => setShowPaymentModal(true)}
-            className="inline-flex items-center justify-center rounded-lg border border-accent/50 bg-accent/20 px-4 py-2 text-sm font-semibold text-accent transition hover:bg-accent/30"
-          >
-            Ajouter un workspace
-          </button>
         </div>
       )}
 
@@ -284,6 +293,15 @@ export const WorkspacesPage = () => {
             <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
               Votre plan {planLabel} autorise déjà le maximum d’espaces de travail.
             </div>
+          )}
+          {workspaceLimitReached && canUpgradePrimary && primaryWorkspace && (
+            <button
+              type="button"
+              onClick={() => setPlanDialogWorkspaceId(primaryWorkspace.id)}
+              className="mb-3 w-full rounded-lg border border-accent/30 bg-accent/10 px-3 py-2 text-xs font-semibold text-accent transition hover:bg-accent/20"
+            >
+              Choisir un plan supérieur
+            </button>
           )}
           <form onSubmit={handleCreateWorkspace} className="space-y-3">
             <input
@@ -320,14 +338,20 @@ export const WorkspacesPage = () => {
             {selectedWorkspace && (
               <div className="space-y-1 text-xs text-slate-400">
                 <div className="flex items-center gap-2">
-                  <StatusBadge
-                    label={`Plan ${planDisplayLabels[selectedWorkspace.plan] ?? selectedWorkspace.plan}`}
-                    tone="neutral"
-                  />
+                  <StatusBadge label={`Plan ${getPlanDisplayName(selectedWorkspace.plan)}`} tone="neutral" />
                   <span>{selectedWorkspace.memberStatus === 'active' ? 'Membre actif' : 'En attente'}</span>
                 </div>
                 <p>Slug : {selectedWorkspace.slug}</p>
                 <p>Limite membres : {selectedWorkspace.planLimits?.members ?? 'Illimitée'}</p>
+                {canManageSelected && (
+                  <button
+                    type="button"
+                    onClick={() => setPlanDialogWorkspaceId(selectedWorkspace.id)}
+                    className="mt-3 w-full rounded-lg border border-accent/30 bg-accent/10 px-3 py-2 text-xs font-semibold text-accent transition hover:bg-accent/20"
+                  >
+                    Ajuster le plan et les limites
+                  </button>
+                )}
                 {canManageSelected && (
                   <form onSubmit={handleRenameWorkspace} className="mt-3 flex items-center gap-2">
                     <input
@@ -441,6 +465,21 @@ export const WorkspacesPage = () => {
           </div>
         )}
       </Card>
+
+      <WorkspacePlanDialog
+        open={planDialogWorkspaceId !== null}
+        workspaceId={planDialogWorkspaceId}
+        workspaceName={planDialogWorkspace?.name}
+        currentPlanId={planDialogWorkspace?.planId ?? null}
+        currentPlanSlug={planDialogWorkspace?.plan}
+        onClose={() => setPlanDialogWorkspaceId(null)}
+        onSuccess={workspace => {
+          refreshWorkspaces().catch(() => undefined)
+          if (workspace.id === selectedWorkspaceId) {
+            setWorkspaceDetail(workspace)
+          }
+        }}
+      />
 
       {deleteDialogOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur">
@@ -574,18 +613,6 @@ export const WorkspacesPage = () => {
         </div>
       )}
 
-      <MockPaymentDialog
-        open={showPaymentModal}
-        intent="workspace"
-        onClose={() => setShowPaymentModal(false)}
-        onConfirm={option => {
-          setShowPaymentModal(false)
-          push({
-            title: 'Simulation de paiement',
-            description: `${option.label} sélectionné. Aucun prélèvement réel n’a été effectué.`
-          })
-        }}
-      />
     </div>
   )
 }

@@ -3,7 +3,8 @@ import type {
   WorkspaceSummary,
   WorkspaceDetail,
   WorkspaceMemberSummary,
-  WorkspaceRole
+  WorkspaceRole,
+  SubscriptionPlan
 } from '../types'
 
 export const fetchWorkspaces = async () => {
@@ -37,6 +38,16 @@ export const inviteWorkspaceMemberRequest = async (
 export const updateWorkspaceRequest = async (workspaceId: string, payload: { name: string }) => {
   const response = await apiClient.patch(`/workspaces/${workspaceId}`, payload)
   return response.data.workspace as WorkspaceSummary
+}
+
+export const fetchWorkspacePlans = async () => {
+  const response = await apiClient.get('/workspaces/plans')
+  return response.data.plans as SubscriptionPlan[]
+}
+
+export const selectWorkspacePlanRequest = async (workspaceId: string, payload: { planId: string }) => {
+  const response = await apiClient.patch(`/workspaces/${workspaceId}/plan`, payload)
+  return response.data.workspace as WorkspaceDetail
 }
 
 export const fetchWorkspaceDomains = async (workspaceId: string) => {

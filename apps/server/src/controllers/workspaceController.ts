@@ -1,5 +1,6 @@
 import { Request, Response } from 'express'
 import { WorkspaceRole } from '@p42/shared'
+import { z } from 'zod'
 import { asyncHandler } from '../middleware/asyncHandler'
 import {
   createWorkspace,
@@ -12,9 +13,13 @@ import {
   getWorkspaceUsage,
   transferWorkspaceAssets,
   purgeWorkspaceAssets,
-  findDefaultWorkspaceForOwner
+  findDefaultWorkspaceForOwner,
+  listActiveSubscriptionPlans,
+  updateWorkspacePlanSelection
 } from '../services/workspaceService'
 import { listDomains } from '../services/domainService'
+
+const planSelectionSchema = z.object({ planId: z.string().uuid() })
 
 export const list = asyncHandler(async (req: Request, res: Response) => {
   if (!req.currentUser) return res.status(401).json({ error: 'Unauthorized' })
@@ -37,7 +42,8 @@ export const create = asyncHandler(async (req: Request, res: Response) => {
       isActive: workspace.isActive,
       role: 'owner' as const,
       memberStatus: 'active' as const,
-      isDefault: workspace.isDefault
+      isDefault: workspace.isDefault,
+      planId: workspace.planId ?? null
     }
   res.status(201).json({ workspace: summary })
 })
@@ -58,6 +64,7 @@ export const detail = asyncHandler(async (req: Request, res: Response) => {
     role: membership.role,
     memberStatus: membership.status,
     isDefault: workspace.isDefault,
+    planId: workspace.planId ?? null,
     usage
   }
   res.json({ workspace: summary })
@@ -124,7 +131,8 @@ export const update = asyncHandler(async (req: Request, res: Response) => {
       planLimits: workspace.planLimits,
       isActive: workspace.isActive,
       role: membership.role,
-      memberStatus: membership.status
+      memberStatus: membership.status,
+      planId: workspace.planId ?? null
     }
   })
 })
@@ -137,6 +145,45 @@ export const domains = asyncHandler(async (req: Request, res: Response) => {
 
   const domains = await listDomains(workspaceId)
   res.json({ domains })
+})
+
+export const listPlans = asyncHandler(async (_req: Request, res: Response) => {
+  const plans = await listActiveSubscriptionPlans()
+  res.json({ plans })
+})
+
+export const selectPlan = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.currentUser) return res.status(401).json({ error: 'Unauthorized' })
+  const workspaceId = req.params.id
+  const membership = await findWorkspaceMembership(workspaceId, req.currentUser.id)
+  if (!membership) return res.status(404).json({ error: 'Workspace not found' })
+  if (!['owner', 'admin'].includes(membership.role)) {
+    return res.status(403).json({ error: 'Only workspace owners can change the plan.' })
+  }
+
+  const parsed = planSelectionSchema.safeParse(req.body ?? {})
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() })
+  }
+
+  const workspace = await updateWorkspacePlanSelection(workspaceId, parsed.data.planId)
+  const usage = await getWorkspaceUsage(workspace.id)
+
+  res.json({
+    workspace: {
+      id: workspace.id,
+      name: workspace.name,
+      slug: workspace.slug,
+      plan: workspace.plan,
+      planLimits: workspace.planLimits,
+      isActive: workspace.isActive,
+      role: membership.role,
+      memberStatus: membership.status,
+      isDefault: workspace.isDefault,
+      planId: workspace.planId ?? null,
+      usage
+    }
+  })
 })
 
 export const remove = asyncHandler(async (req: Request, res: Response) => {
