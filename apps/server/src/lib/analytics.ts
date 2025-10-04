@@ -11,6 +11,9 @@ type IntervalConfig = {
   granularity: 'second' | 'minute' | 'hour' | 'day' | 'month'
 }
 
+type LinkEventFindOptions = NonNullable<Parameters<typeof LinkEvent.findAll>[0]>
+type LinkEventInclude = LinkEventFindOptions['include']
+
 const MINUTE = 60 * 1000
 const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
@@ -128,20 +131,21 @@ export const fetchEventsForInterval = async (filters: {
   if (filters.projectId) where.projectId = filters.projectId
   if (filters.linkId) where.linkId = filters.linkId
 
-  const include = [] as Parameters<typeof LinkEvent.findAll>[0]['include']
-  if (filters.userId) {
-    include?.push({
-      model: Link,
-      as: 'link',
-      attributes: [],
-      where: { createdById: filters.userId }
-    })
-  }
+  const include: LinkEventInclude = filters.userId
+    ? ([
+        {
+          model: Link,
+          as: 'link',
+          attributes: [],
+          where: { createdById: filters.userId }
+        }
+      ] as LinkEventInclude)
+    : undefined
 
   const events = await LinkEvent.findAll({
     where,
     order: [['occurredAt', 'ASC']],
-    ...(include && include.length ? { include } : {})
+    include
   })
   return applyEventFilters(events, filters.filters)
 }

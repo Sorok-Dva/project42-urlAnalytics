@@ -89,6 +89,7 @@ export const listWorkspaces = asyncHandler(async (_req: Request, res: Response) 
   const data = await Promise.all(
     workspaces.map(async workspace => {
       const usage = await getWorkspaceUsage(workspace.id)
+      const owner = workspace.get('owner') as User | undefined
       return {
         id: workspace.id,
         name: workspace.name,
@@ -97,8 +98,8 @@ export const listWorkspaces = asyncHandler(async (_req: Request, res: Response) 
         planLimits: workspace.planLimits,
         isActive: workspace.isActive,
         createdAt: workspace.createdAt,
-        owner: workspace.owner
-          ? { id: workspace.owner.id, email: workspace.owner.email, name: workspace.owner.name }
+        owner: owner
+          ? { id: owner.id, email: owner.email, name: owner.name }
           : null,
         usage
       }
