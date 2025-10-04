@@ -228,11 +228,12 @@ export const listWorkspacesForUser = async (userId: string): Promise<WorkspaceSu
     order: [['createdAt', 'ASC']]
   })
 
-  return memberships
+  const summaries = memberships
     .map(membership => {
       const workspace = membership.workspace
       if (!workspace) return null
-      return {
+
+      const summary: WorkspaceSummary = {
         id: workspace.id,
         name: workspace.name,
         slug: workspace.slug,
@@ -243,9 +244,13 @@ export const listWorkspacesForUser = async (userId: string): Promise<WorkspaceSu
         memberStatus: membership.status,
         isDefault: workspace.isDefault,
         planId: workspace.planId ?? null
-      } satisfies WorkspaceSummary
+      }
+
+      return summary
     })
     .filter((item): item is WorkspaceSummary => item !== null)
+
+  return summaries
 }
 
 export const listWorkspaceMembers = async (workspaceId: string): Promise<WorkspaceMemberSummary[]> => {
