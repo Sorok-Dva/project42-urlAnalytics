@@ -820,7 +820,8 @@ export const transferLinkToWorkspace = async (payload: {
     targetProjectId = project.id
   }
 
-  const previousDomainName = link.domain?.domain ?? null
+  const linkWithDomain = link as Link & { domain?: Domain | null }
+  const previousDomainName = linkWithDomain.domain?.domain ?? null
 
   await sequelize.transaction(async transaction => {
     link.workspaceId = payload.targetWorkspaceId
